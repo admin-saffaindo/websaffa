@@ -1,0 +1,49 @@
+@import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700;800;900&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Poppins", "Helvetica Neue", Arial, sans-serif;
+  --color-saffa-pink: #e90076;
+  --color-saffa-pink-hover: #c70063;
+  --color-saffa-green: #78b928;
+  --color-saffa-green-hover: #62981f;
+}
+
+body {
+  background-color: #fef2f7;
+  color: #1f2937;
+}
+
+/* Custom glassmorphism utilities from Vibrant Palette Design */
+.glassmorphism {
+  background: rgba(255, 255, 255, 0.4);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  box-shadow: 0 20px 40px -15px rgba(233, 0, 118, 0.1);
+}
+
+.glassmorphism-card {
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 10px 30px -10px rgba(0, 0, 0, 0.05);
+}
+
+/* Custom Scrollbar for elegant look */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #e90076;
+  border-radius: 10px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #78b928;
+}
+

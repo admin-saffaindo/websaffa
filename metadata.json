@@ -1,0 +1,6 @@
+{
+  "name": "Saffa Dashboard Keuangan",
+  "description": "Aplikasi Web Dashboard Keuangan Saffa Bubur Bayi dengan desain Glassmorphism Premium.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
