@@ -138,9 +138,11 @@ export const exportToPDF = async (
   doc.setFillColor(120, 185, 40); // Saffa Green (#78b928)
   doc.rect(0, 0, 210, 4, 'F');
 
+  let textStartX = 28;
   if (imgElement) {
-    // Draw Saffa logo
-    doc.addImage(imgElement, 'PNG', 15, 9, 11, 11);
+    // Draw Saffa logo (larger size 16x16)
+    doc.addImage(imgElement, 'PNG', 15, 7, 16, 16);
+    textStartX = 35;
   } else {
     // Saffa logo badge (vector emblem fallback)
     doc.setFillColor(120, 185, 40); // Saffa Green
@@ -151,19 +153,20 @@ export const exportToPDF = async (
     doc.setFont('helvetica', 'bold');
     doc.setFontSize(8);
     doc.text('S', 19, 17);
+    textStartX = 28;
   }
 
   // "SAFFA ID" brand name
   doc.setTextColor(33, 41, 54); // Dark slate
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(14);
-  doc.text('SAFFA ID', 28, 17);
+  doc.text('SAFFA ID', textStartX, 17);
 
   // Slogan/Label below brand text
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(7.5);
   doc.setTextColor(115, 128, 142); // Gray
-  doc.text('Sistem Informasi Omset & Transaksi', 28, 22);
+  doc.text('Sistem Informasi Omset & Transaksi', textStartX, 22);
 
   // Document Title & Metadata on the Right
   doc.setTextColor(33, 41, 54);

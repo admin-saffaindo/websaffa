@@ -28,7 +28,7 @@ const OUTLETS_DATA = [
   }
 ];
 const OUTLETS = OUTLETS_DATA.flatMap(r => r.items);
-const LOGO_URL = 'https://i.ibb.co.com/6cmz9N6B/saffa-id.png';
+const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-103210-0000.png';
 
 // Interfaces
 interface Transaction {
