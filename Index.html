@@ -289,45 +289,73 @@
           <!-- RIGHT COLUMN: ANALYTICS CHART -->
           <div class="lg:col-span-7 glassmorphism rounded-3xl p-6 flex flex-col justify-between">
             <div>
-              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 mb-4">
+              <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 mb-4">
                 <div class="flex items-center gap-2">
                   <div class="w-8 h-8 rounded-lg bg-green-100 flex items-center justify-center text-saffa-green">
                     <i data-lucide="bar-chart-3" class="w-5 h-5"></i>
                   </div>
-                  <h2 id="chartTitleText" class="text-lg font-bold text-gray-800">Grafik Omset Outlet</h2>
+                  <div>
+                    <h2 id="chartTitleText" class="text-lg font-bold text-gray-800 leading-tight">Grafik Omset Harian</h2>
+                    <p class="text-[10px] font-bold text-gray-400 uppercase tracking-wider mt-0.5">Analisis Per Outlet</p>
+                  </div>
                 </div>
-                <!-- Selector Tabs -->
-                <div class="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl border border-gray-200/50">
-                  <button
-                    type="button"
-                    id="btnChartOutlet"
-                    onclick="setChartView('outlet')"
-                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-[#78b928] text-white shadow-sm"
-                  >
-                    Outlet
-                  </button>
-                  <button
-                    type="button"
-                    id="btnChartWeekly"
-                    onclick="setChartView('weekly')"
-                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-gray-600 hover:bg-gray-200/80"
-                  >
-                    Mingguan
-                  </button>
-                  <button
-                    type="button"
-                    id="btnChartMonthly"
-                    onclick="setChartView('monthly')"
-                    class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-gray-600 hover:bg-gray-200/80"
-                  >
-                    Bulanan
-                  </button>
+                
+                <div class="flex flex-wrap items-center gap-2">
+                  <!-- Date Selector -->
+                  <div class="flex items-center gap-2 bg-white/60 backdrop-blur-sm px-3 py-1.5 rounded-xl border border-gray-200 shadow-sm">
+                    <span class="text-[10px] font-bold text-gray-500 uppercase">Pilih Tanggal:</span>
+                    <input 
+                      type="date"
+                      id="chartDateSelector"
+                      onchange="updateChartDate(this.value)"
+                      class="text-xs font-bold text-gray-700 bg-transparent border-none focus:outline-none focus:ring-0 p-0 cursor-pointer"
+                    />
+                  </div>
+
+                  <!-- Selector Tabs -->
+                  <div class="flex items-center gap-1 bg-gray-100/80 p-1 rounded-2xl border border-gray-200/50">
+                    <button
+                      type="button"
+                      id="btnChartOutlet"
+                      onclick="setChartView('outlet')"
+                      class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer bg-[#78b928] text-white shadow-sm"
+                    >
+                      Harian
+                    </button>
+                    <button
+                      type="button"
+                      id="btnChartWeekly"
+                      onclick="setChartView('weekly')"
+                      class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-gray-600 hover:bg-gray-200/80"
+                    >
+                      Mingguan
+                    </button>
+                    <button
+                      type="button"
+                      id="btnChartMonthly"
+                      onclick="setChartView('monthly')"
+                      class="px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer text-gray-600 hover:bg-gray-200/80"
+                    >
+                      Bulanan
+                    </button>
+                  </div>
                 </div>
+              </div>
+
+              <!-- Period Description Banner -->
+              <div class="text-xs text-gray-600 font-semibold mb-3 flex items-center gap-2">
+                <span class="px-2 py-0.5 bg-pink-100 text-saffa-pink rounded-lg text-[9px] font-bold uppercase tracking-wide">Periode Aktif</span>
+                <span id="chartPeriodDescription">Tanggal -</span>
               </div>
 
               <!-- CHART CANVAS WRAPPER -->
               <div class="relative w-full h-[320px] bg-white/50 rounded-2xl p-3 border border-white/40">
                 <canvas id="omsetChart" class="w-full h-full"></canvas>
+              </div>
+
+              <!-- HIGHEST & LOWEST OUTLETS ANALYSIS CARD -->
+              <div class="grid grid-cols-1 sm:grid-cols-2 gap-4 mt-4" id="chartAnalysisCards">
+                <!-- Dynamically injected -->
               </div>
             </div>
           </div>
@@ -359,6 +387,7 @@
             <table class="min-w-full divide-y divide-gray-100 bg-white/50 text-left text-sm">
               <thead class="bg-gray-50/50">
                 <tr>
+                  <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">ID</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">Tanggal</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">Outlet</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Cash</th>
@@ -370,7 +399,7 @@
               <tbody id="tableBody" class="divide-y divide-gray-100">
                 <!-- Data will load here dynamically -->
                 <tr>
-                  <td colspan="6" class="px-6 py-8 text-center text-xs text-gray-400">
+                  <td colspan="7" class="px-6 py-8 text-center text-xs text-gray-400">
                     <div class="flex flex-col items-center justify-center gap-2">
                       <div class="w-6 h-6 border-2 border-saffa-pink border-t-transparent rounded-full animate-spin"></div>
                       <span>Menghubungkan ke server...</span>
@@ -404,6 +433,7 @@
     // State Aplikasi
     let dbData = [];
     let chartInstance = null;
+    let chartDate = new Date().toISOString().split('T')[0];
     const CORRECT_PASSWORD = 'saffaseiza123';
     const ADMIN_PASSWORD = 'omsetnaik';
     const OUTLETS_DATA = [
@@ -423,6 +453,11 @@
       // Setup Tanggal hari ini
       const today = new Date().toISOString().split('T')[0];
       document.getElementById('inputTanggal').value = today;
+      
+      const dateSelector = document.getElementById('chartDateSelector');
+      if (dateSelector) {
+        dateSelector.value = today;
+      }
 
       // Cek Session Login
       const isLoggedIn = sessionStorage.getItem('isLoggedIn') === 'true';
@@ -576,6 +611,45 @@
     // --- CHART VIEW SELECTION ---
     let chartView = 'outlet';
 
+    function updateChartDate(val) {
+      chartDate = val;
+      renderChart();
+    }
+
+    // Helper to format ISO Date Obj to 'YYYY-MM-DD'
+    function formatDateISO(dateObj) {
+      const year = dateObj.getFullYear();
+      const month = String(dateObj.getMonth() + 1).padStart(2, '0');
+      const day = String(dateObj.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+    }
+
+    // Helper to format Date into Indonesian words (e.g. 9 Juli 2026)
+    function formatDateIndo(dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'long', year: 'numeric' });
+    }
+
+    // Helper to get Indonesian week range (e.g. 6 Jul - 12 Jul 2026)
+    function getWeekRangeIndo(dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      const day = d.getDay();
+      const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+      const monday = new Date(d.setDate(diff));
+      const sunday = new Date(monday);
+      sunday.setDate(monday.getDate() + 6);
+      return `${monday.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })} - ${sunday.toLocaleDateString('id-ID', { day: 'numeric', month: 'short', year: 'numeric' })}`;
+    }
+
+    // Helper to get Indonesian Month Year (e.g. Juli 2026)
+    function getMonthYearIndo(dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return '';
+      return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    }
+
     function setChartView(view) {
       chartView = view;
       
@@ -601,9 +675,9 @@
       // Update Title
       const titleEl = document.getElementById('chartTitleText');
       if (titleEl) {
-        if (view === 'outlet') titleEl.textContent = 'Grafik Omset Outlet';
-        if (view === 'weekly') titleEl.textContent = 'Tren Omset Mingguan';
-        if (view === 'monthly') titleEl.textContent = 'Tren Omset Bulanan';
+        if (view === 'outlet') titleEl.textContent = 'Grafik Omset Harian';
+        if (view === 'weekly') titleEl.textContent = 'Grafik Omset Mingguan';
+        if (view === 'monthly') titleEl.textContent = 'Grafik Omset Bulanan';
       }
 
       renderChart();
@@ -611,94 +685,111 @@
 
     // --- RENDER CHART.JS ---
     function renderChart() {
-      const ctx = document.getElementById('omsetChart').getContext('2d');
+      const canvasEl = document.getElementById('omsetChart');
+      if (!canvasEl) return;
+      const ctx = canvasEl.getContext('2d');
       
-      let labels = [];
-      let dataCash = [];
-      let dataQris = [];
+      let activeTransactions = [];
+      let labelDescription = '';
 
       if (chartView === 'outlet') {
-        // Hitung agregat per outlet
-        const outletTotals = {};
-        OUTLETS.forEach(o => {
-          outletTotals[o] = { cash: 0, qris: 0 };
-        });
-
-        dbData.forEach(item => {
-          if (outletTotals[item.outlet]) {
-            outletTotals[item.outlet].cash += item.cash;
-            outletTotals[item.outlet].qris += item.qris;
-          }
-        });
-
-        labels = OUTLETS;
-        dataCash = OUTLETS.map(o => outletTotals[o].cash);
-        dataQris = OUTLETS.map(o => outletTotals[o].qris);
+        activeTransactions = dbData.filter(t => t.tanggal === chartDate);
+        labelDescription = `Tanggal ${formatDateIndo(chartDate)}`;
       } else if (chartView === 'weekly') {
-        const weeksMap = {};
+        const d = new Date(chartDate);
+        const day = d.getDay();
+        const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+        const monday = new Date(d.setDate(diff));
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
         
-        dbData.forEach(item => {
-          const d = new Date(item.tanggal);
-          if (isNaN(d.getTime())) return;
-          const day = d.getDay();
-          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
-          const monday = new Date(d.setDate(diff));
-          monday.setHours(0,0,0,0);
-          
-          const sunday = new Date(monday);
-          sunday.setDate(monday.getDate() + 6);
-          
-          const options = { day: 'numeric', month: 'short' };
-          const label = `${monday.toLocaleDateString('id-ID', options)} - ${sunday.toLocaleDateString('id-ID', options)}`;
-          
-          if (!weeksMap[label]) {
-            weeksMap[label] = {
-              startTimestamp: monday.getTime(),
-              cash: 0,
-              qris: 0
-            };
-          }
-          weeksMap[label].cash += item.cash;
-          weeksMap[label].qris += item.qris;
-        });
-        
-        const sortedWeeks = Object.entries(weeksMap).sort((a, b) => a[1].startTimestamp - b[1].startTimestamp);
-        labels = sortedWeeks.map(([label]) => label);
-        dataCash = sortedWeeks.map(([_, data]) => data.cash);
-        dataQris = sortedWeeks.map(([_, data]) => data.qris);
-      } else if (chartView === 'monthly') {
-        const monthsMap = {};
-        
-        dbData.forEach(item => {
-          const d = new Date(item.tanggal);
-          if (isNaN(d.getTime())) return;
-          const startOfMonth = new Date(d.getFullYear(), d.getMonth(), 1);
-          const label = startOfMonth.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
-          
-          if (!monthsMap[label]) {
-            monthsMap[label] = {
-              startTimestamp: startOfMonth.getTime(),
-              cash: 0,
-              qris: 0
-            };
-          }
-          monthsMap[label].cash += item.cash;
-          monthsMap[label].qris += item.qris;
-        });
-        
-        const sortedMonths = Object.entries(monthsMap).sort((a, b) => a[1].startTimestamp - b[1].startTimestamp);
-        labels = sortedMonths.map(([label]) => label);
-        dataCash = sortedMonths.map(([_, data]) => data.cash);
-        dataQris = sortedMonths.map(([_, data]) => data.qris);
+        const mondayStr = formatDateISO(monday);
+        const sundayStr = formatDateISO(sunday);
+        activeTransactions = dbData.filter(t => t.tanggal >= mondayStr && t.tanggal <= sundayStr);
+        labelDescription = `Minggu (${getWeekRangeIndo(chartDate)})`;
+      } else {
+        const monthPrefix = chartDate.substring(0, 7);
+        activeTransactions = dbData.filter(t => t.tanggal.startsWith(monthPrefix));
+        labelDescription = `Bulan ${getMonthYearIndo(chartDate)}`;
       }
+
+      // Update period banner in DOM
+      const periodDescEl = document.getElementById('chartPeriodDescription');
+      if (periodDescEl) {
+        periodDescEl.textContent = labelDescription;
+      }
+
+      // Calculate sum for each outlet
+      const outletSums = OUTLETS.map(o => {
+        const sum = activeTransactions
+          .filter(t => t.outlet === o)
+          .reduce((s, t) => s + (t.cash + t.qris), 0);
+        return { name: o, total: sum };
+      });
+
+      // Filter out outlets with 0 to find real highest and lowest performing
+      const validSums = outletSums.filter(o => o.total > 0);
+
+      let highest = null;
+      let lowest = null;
+
+      if (validSums.length > 0) {
+        const sorted = [...validSums].sort((a, b) => b.total - a.total);
+        highest = sorted[0];
+        lowest = sorted[sorted.length - 1];
+      }
+
+      // Render Highest & Lowest Cards in DOM
+      const cardsContainer = document.getElementById('chartAnalysisCards');
+      if (cardsContainer) {
+        cardsContainer.innerHTML = `
+          ${highest ? `
+            <div class="p-4 bg-emerald-50/80 border border-emerald-100/80 rounded-2xl flex items-center justify-between shadow-sm">
+              <div>
+                <span class="text-[10px] font-bold text-emerald-600 uppercase tracking-wider block">
+                  Outlet Tertinggi (${chartView === 'outlet' ? 'Harian' : chartView === 'weekly' ? 'Mingguan' : 'Bulanan'})
+                </span>
+                <span class="text-sm font-bold text-gray-800 mt-1 block leading-tight">${highest.name}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] font-semibold text-emerald-700 block">Total Omset</span>
+                <span class="text-sm font-extrabold text-[#78b928] font-mono block mt-0.5">${formatRupiah(highest.total)}</span>
+              </div>
+            </div>
+          ` : `
+            <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-xs text-gray-400 font-semibold py-6">
+              Tidak ada transaksi untuk Outlet Tertinggi
+            </div>
+          `}
+
+          ${lowest ? `
+            <div class="p-4 bg-rose-50/80 border border-rose-100/80 rounded-2xl flex items-center justify-between shadow-sm">
+              <div>
+                <span class="text-[10px] font-bold text-rose-600 uppercase tracking-wider block">
+                  Outlet Terendah (${chartView === 'outlet' ? 'Harian' : chartView === 'weekly' ? 'Mingguan' : 'Bulanan'})
+                </span>
+                <span class="text-sm font-bold text-gray-800 mt-1 block leading-tight">${lowest.name}</span>
+              </div>
+              <div class="text-right">
+                <span class="text-[10px] font-semibold text-rose-700 block">Total Omset</span>
+                <span class="text-sm font-extrabold text-[#e90076] font-mono block mt-0.5">${formatRupiah(lowest.total)}</span>
+              </div>
+            </div>
+          ` : `
+            <div class="p-4 bg-gray-50 border border-gray-100 rounded-2xl text-center text-xs text-gray-400 font-semibold py-6">
+              Tidak ada transaksi untuk Outlet Terendah
+            </div>
+          `}
+        `;
+      }
+
+      const labels = OUTLETS;
+      const totalData = outletSums.map(item => item.total);
 
       // Hancurkan chart yang ada jika ada (Sesuai Spesifikasi)
       if (chartInstance) {
         chartInstance.destroy();
       }
-
-      // Gabungkan data cash dan qris menjadi total omset
-      const totalData = dataCash.map((cash, idx) => cash + dataQris[idx]);
 
       // Buat chart baru dengan model line chart premium
       chartInstance = new Chart(ctx, {
@@ -734,7 +825,7 @@
               labels: {
                 font: {
                   family: 'Poppins',
-                  size: 10
+                  size: 11
                 },
                 boxWidth: 12,
                 usePointStyle: true,
@@ -758,8 +849,10 @@
               ticks: {
                 font: {
                   family: 'Poppins',
-                  size: 11
-                }
+                  size: 10
+                },
+                maxRotation: 45,
+                minRotation: 45
               }
             },
             y: {
@@ -774,9 +867,10 @@
                   size: 10
                 },
                 callback: function(value) {
-                  return value >= 1000000 
-                    ? 'Rp ' + (value / 1000000).toFixed(1) + 'jt' 
-                    : 'Rp ' + (value / 1000).toFixed(0) + 'rb';
+                  const num = value;
+                  return num >= 1000000 
+                    ? 'Rp ' + (num / 1000000).toFixed(1) + 'jt' 
+                    : 'Rp ' + (num / 1000).toFixed(0) + 'rb';
                 }
               }
             }
@@ -872,8 +966,10 @@
             return;
           }
 
+          const generatedId = generateSimpleId();
           const mockNewData = {
             rowId: dbData.length > 0 ? Math.max(...dbData.map(d => d.rowId)) + 1 : 2,
+            id: generatedId,
             tanggal: date,
             outlet: outlet,
             cash: cash,
@@ -885,7 +981,7 @@
           dbData.unshift(mockNewData); // Taruh di awal untuk visualisasi instan
           saveMockToLocal();
           updateDashboardData();
-          showToast(`[Simulasi] Data ${outlet} sukses disimpan!`, "success");
+          showToast(`[Simulasi] Data ${outlet} sukses disimpan dengan ID ${generatedId}!`, "success");
           resetForm();
         }, 800);
       }
@@ -924,6 +1020,7 @@
         
         rowsHTML += `
           <tr class="hover:bg-pink-50/20 transition-all">
+            <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-gray-500 font-bold">${item.id || '-'}</td>
             <td class="px-6 py-4 whitespace-nowrap font-medium text-gray-700">${formattedDate}</td>
             <td class="px-6 py-4 whitespace-nowrap">
               <span class="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold ${getOutletBadgeStyle(item.outlet)}">
@@ -1047,6 +1144,18 @@
       }
     }
 
+    function generateSimpleId() {
+      const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+      const digits = '0123456789';
+      const firstLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+      const lastLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+      let numStr = '';
+      for (let i = 0; i < 4; i++) {
+        numStr += digits.charAt(Math.floor(Math.random() * digits.length));
+      }
+      return firstLetter + numStr + lastLetter;
+    }
+
     // --- MOCK OFFLINE DATABASE ENGINE ---
     // Dipakai jika dibuka mandiri di luar Apps Script, guna demo interaktif
     function loadMockData() {
@@ -1062,11 +1171,11 @@
         const formatYmd = (d) => d.toISOString().split('T')[0];
 
         dbData = [
-          { rowId: 2, tanggal: formatYmd(today), outlet: 'KM 8 Atas', cash: 450000, qris: 150000, total: 600000, timestamp: today.toLocaleString("id-ID") },
-          { rowId: 3, tanggal: formatYmd(today), outlet: 'Poltekkes', cash: 320000, qris: 220000, total: 540000, timestamp: today.toLocaleString("id-ID") },
-          { rowId: 4, tanggal: formatYmd(yesterday), outlet: 'KM 8 Atas', cash: 420000, qris: 180000, total: 600000, timestamp: yesterday.toLocaleString("id-ID") },
-          { rowId: 5, tanggal: formatYmd(yesterday), outlet: 'Ganet', cash: 280000, qris: 120000, total: 400000, timestamp: yesterday.toLocaleString("id-ID") },
-          { rowId: 6, tanggal: formatYmd(yesterday), outlet: 'Bincen', cash: 510000, qris: 240000, total: 750000, timestamp: yesterday.toLocaleString("id-ID") }
+          { rowId: 2, id: 'D1799C', tanggal: formatYmd(today), outlet: 'KM 8 Atas', cash: 450000, qris: 150000, total: 600000, timestamp: today.toLocaleString("id-ID") },
+          { rowId: 3, id: 'P3024W', tanggal: formatYmd(today), outlet: 'Poltekkes', cash: 320000, qris: 220000, total: 540000, timestamp: today.toLocaleString("id-ID") },
+          { rowId: 4, id: 'A8812X', tanggal: formatYmd(yesterday), outlet: 'KM 8 Atas', cash: 420000, qris: 180000, total: 600000, timestamp: yesterday.toLocaleString("id-ID") },
+          { rowId: 5, id: 'G4592H', tanggal: formatYmd(yesterday), outlet: 'Ganet', cash: 280000, qris: 120000, total: 400000, timestamp: yesterday.toLocaleString("id-ID") },
+          { rowId: 6, id: 'B6109K', tanggal: formatYmd(yesterday), outlet: 'Bincen', cash: 510000, qris: 240000, total: 750000, timestamp: yesterday.toLocaleString("id-ID") }
         ];
         saveMockToLocal();
       }

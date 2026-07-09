@@ -117,9 +117,24 @@ function getSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     // Tulis header jika sheet baru dibuat
-    sheet.appendRow(["Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
+    sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
   }
   return sheet;
+}
+
+/**
+ * Membuat ID transaksi sederhana campuran huruf dan angka (Format: D1799C)
+ */
+function generateSimpleId() {
+  var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+  var digits = '0123456789';
+  var firstLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+  var lastLetter = letters.charAt(Math.floor(Math.random() * letters.length));
+  var numStr = '';
+  for (var i = 0; i < 4; i++) {
+    numStr += digits.charAt(Math.floor(Math.random() * digits.length));
+  }
+  return firstLetter + numStr + lastLetter;
 }
 
 /**
@@ -134,13 +149,40 @@ function getData() {
       return []; // Hanya header atau kosong
     }
     
-    const range = sheet.getRange(2, 1, lastRow - 1, 6);
+    const numCols = sheet.getLastColumn();
+    const range = sheet.getRange(2, 1, lastRow - 1, numCols);
     const values = range.getValues();
+    const isNewFormat = numCols >= 7 && sheet.getRange(1, 1).getValue() === "ID";
     
     // Konversi baris ke bentuk JSON array agar mudah diolah di frontend
     return values.map((row, index) => {
-      // Format tanggal ke YYYY-MM-DD
-      let dateVal = row[0];
+      let id = "";
+      let dateVal = null;
+      let outlet = "";
+      let cash = 0;
+      let qris = 0;
+      let total = 0;
+      let timestamp = "";
+      
+      if (isNewFormat) {
+        id = row[0] ? String(row[0]) : "";
+        dateVal = row[1];
+        outlet = row[2];
+        cash = Number(row[3]) || 0;
+        qris = Number(row[4]) || 0;
+        total = Number(row[5]) || 0;
+        timestamp = row[6] ? String(row[6]) : "";
+      } else {
+        // Format lama 6 kolom
+        id = "D" + (1700 + index) + "C"; // fallback simple ID
+        dateVal = row[0];
+        outlet = row[1];
+        cash = Number(row[2]) || 0;
+        qris = Number(row[3]) || 0;
+        total = Number(row[4]) || 0;
+        timestamp = row[5] ? String(row[5]) : "";
+      }
+      
       let dateString = "";
       if (dateVal instanceof Date) {
         const year = dateVal.getFullYear();
@@ -153,12 +195,13 @@ function getData() {
       
       return {
         rowId: index + 2, // Baris nyata di Google Sheets (dimulai dari indeks 2)
+        id: id,
         tanggal: dateString,
-        outlet: row[1],
-        cash: Number(row[2]) || 0,
-        qris: Number(row[3]) || 0,
-        total: Number(row[4]) || 0,
-        timestamp: row[5] ? String(row[5]) : ""
+        outlet: outlet,
+        cash: cash,
+        qris: qris,
+        total: total,
+        timestamp: timestamp
       };
     });
   } catch (error) {
@@ -189,13 +232,40 @@ function addData(tanggal, outlet, cash, qris) {
     const qrisVal = Number(qris) || 0;
     const totalVal = cashVal + qrisVal;
     const timestamp = new Date().toLocaleString("id-ID");
+    const transactionId = generateSimpleId();
     
-    // Tambahkan baris baru
-    sheet.appendRow([tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+    const numCols = sheet.getLastColumn();
+    const isNewFormat = numCols >= 7 && sheet.getRange(1, 1).getValue() === "ID";
+    
+    if (isNewFormat) {
+      // Tambahkan baris baru dengan format 7 kolom
+      sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+    } else {
+      // Otomatis lakukan migrasi sheet lama ke format 7 kolom dengan menambahkan kolom ID di depan
+      if (sheet.getLastRow() >= 1) {
+        sheet.insertColumnBefore(1);
+        sheet.getRange(1, 1).setValue("ID");
+        const lastRow = sheet.getLastRow();
+        if (lastRow > 1) {
+          const idRange = sheet.getRange(2, 1, lastRow - 1, 1);
+          const idValues = [];
+          for (let i = 0; i < lastRow - 1; i++) {
+            idValues.push([generateSimpleId()]);
+          }
+          idRange.setValues(idValues);
+        }
+        // Sekarang lembar kerja sudah bermigrasi ke 7 kolom
+        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+      } else {
+        // Lembar kerja kosong total
+        sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
+        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+      }
+    }
     
     return {
       success: true,
-      message: `Data untuk Outlet ${outlet} berhasil disimpan!`
+      message: `Data untuk Outlet ${outlet} berhasil disimpan dengan ID ${transactionId}!`
     };
   } catch (error) {
     throw new Error("Gagal menyimpan data: " + error.message);
