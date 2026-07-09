@@ -89,7 +89,23 @@ export default function App() {
     const localData = localStorage.getItem('saffa_react_data');
     if (localData) {
       try {
-        return JSON.parse(localData);
+        const parsed = JSON.parse(localData);
+        if (Array.isArray(parsed)) {
+          const idRegex = /^[A-Z]\d{4}[A-Z]$/;
+          let modified = false;
+          const migrated = parsed.map((item: any) => {
+            if (!item.id || !idRegex.test(item.id)) {
+              modified = true;
+              return { ...item, id: generateSimpleId() };
+            }
+            return item;
+          });
+          if (modified) {
+            localStorage.setItem('saffa_react_data', JSON.stringify(migrated));
+          }
+          return migrated;
+        }
+        return DEFAULT_TRANSACTIONS;
       } catch (e) {
         return DEFAULT_TRANSACTIONS;
       }

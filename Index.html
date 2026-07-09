@@ -1156,12 +1156,28 @@
       return firstLetter + numStr + lastLetter;
     }
 
-    // --- MOCK OFFLINE DATABASE ENGINE ---
+     // --- MOCK OFFLINE DATABASE ENGINE ---
     // Dipakai jika dibuka mandiri di luar Apps Script, guna demo interaktif
     function loadMockData() {
       const stored = localStorage.getItem('saffa_mock_data');
       if (stored) {
-        dbData = JSON.parse(stored);
+        try {
+          dbData = JSON.parse(stored);
+          const idRegex = /^[A-Z]\d{4}[A-Z]$/;
+          let modified = false;
+          dbData = dbData.map(function(item) {
+            if (!item.id || !idRegex.test(item.id)) {
+              modified = true;
+              return Object.assign({}, item, { id: generateSimpleId() });
+            }
+            return item;
+          });
+          if (modified) {
+            saveMockToLocal();
+          }
+        } catch (e) {
+          // fallback jika ada error parsing
+        }
       } else {
         // Seeding Data Awal yang Menarik
         const today = new Date();
