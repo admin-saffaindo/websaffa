@@ -1078,126 +1078,6 @@ function deleteData(rowId) {
                   </div>
                 )}
 
-                {/* GOOGLE SHEETS LIVE CONNECTION PANEL */}
-                <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-lg rounded-[2rem] p-5">
-                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-saffa-green flex-shrink-0">
-                        <Database className="w-5 h-5" />
-                      </div>
-                      <div>
-                        <h3 className="text-sm font-bold text-gray-800">Koneksi Spreadsheet Google Sheets (Saffa Live)</h3>
-                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
-                          Hubungkan aplikasi pratinjau ini secara langsung ke Google Sheets Anda dengan menempelkan URL Web App hasil deploy Apps Script.
-                        </p>
-                      </div>
-                    </div>
-                    
-                    <div className="flex items-center gap-2 self-start md:self-center">
-                      <span className="text-xs font-semibold text-gray-500">Status:</span>
-                      {isLiveMode && webAppUrl ? (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
-                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-1.5"></span>
-                          Terhubung (LIVE)
-                        </span>
-                      ) : (
-                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
-                          <span className="w-2 h-2 rounded-full bg-gray-400 mr-1.5"></span>
-                          Offline (Lokal)
-                        </span>
-                      )}
-                    </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-white/60 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
-                    <div className="md:col-span-8">
-                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">
-                        Google Apps Script Web App URL
-                      </label>
-                      <input 
-                        type="url"
-                        value={webAppUrl}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          setWebAppUrl(val);
-                          localStorage.setItem('saffa_web_app_url', val);
-                        }}
-                        placeholder="https://script.google.com/macros/s/AKfyby.../exec"
-                        className="w-full px-3 py-2 bg-white/70 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#78b928]/30 focus:border-transparent font-mono"
-                      />
-                    </div>
-                    
-                    <div className="md:col-span-4 flex gap-2 h-9 self-end">
-                      <button
-                        onClick={() => {
-                          if (!webAppUrl) {
-                            triggerToast('Harap masukkan URL Web App Google Script terlebih dahulu!', 'error');
-                            return;
-                          }
-                          const nextMode = !isLiveMode;
-                          setIsLiveMode(nextMode);
-                          localStorage.setItem('saffa_is_live_mode', String(nextMode));
-                          if (nextMode) {
-                            fetchLiveTransactions(webAppUrl);
-                          } else {
-                            // Offline, reset to local transactions
-                            const localData = localStorage.getItem('saffa_react_data');
-                            if (localData) {
-                              setTransactions(JSON.parse(localData));
-                            } else {
-                              setTransactions(DEFAULT_TRANSACTIONS);
-                            }
-                            triggerToast('Beralih kembali ke mode penyimpanan lokal (offline).', 'success');
-                          }
-                        }}
-                        className={`flex-1 h-full px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                          isLiveMode 
-                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-sm' 
-                            : 'bg-saffa-green hover:bg-saffa-green-hover text-white shadow-sm shadow-green-100'
-                        }`}
-                      >
-                        {isLoadingLive ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : isLiveMode ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            Matikan Live
-                          </>
-                        ) : (
-                          <>
-                            <Database className="w-3.5 h-3.5" />
-                            Hubungkan Live
-                          </>
-                        )}
-                      </button>
-
-                      {isLiveMode && (
-                        <button
-                          onClick={() => fetchLiveTransactions()}
-                          disabled={isLoadingLive}
-                          className="px-3 h-full bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm"
-                          title="Refresh Data dari Sheets"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLive ? 'animate-spin' : ''}`} />
-                        </button>
-                      )}
-                    </div>
-                  </div>
-                  
-                  <div className="mt-2 text-[11px] text-gray-500 leading-relaxed font-medium">
-                    {isLiveMode ? (
-                      <span className="text-[#78b928] font-bold flex items-center gap-1">
-                        <CheckCircle className="w-3 h-3 flex-shrink-0" />
-                        Aplikasi saat ini membaca dan menulis data langsung ke Google Sheets Anda!
-                      </span>
-                    ) : (
-                      <span>
-                        💡 <strong>Cara Hubungkan Live:</strong> Salin script dari tab <strong>Dapatkan Kode GAS</strong>, pasang di Google Sheets Anda, Deploy sebagai <strong>Web App</strong>, lalu tempel URL-nya di atas dan klik <strong>Hubungkan Live</strong>.
-                      </span>
-                    )}
-                  </div>
-                </div>
-
                 {/* CARDS: FINANCIAL SUMMARY */}
                 <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
                   
@@ -1617,6 +1497,126 @@ function deleteData(rowId) {
                         )}
                       </tbody>
                     </table>
+                  </div>
+                </div>
+
+                {/* GOOGLE SHEETS LIVE CONNECTION PANEL */}
+                <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-lg rounded-[2rem] p-5">
+                  <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-xl bg-green-100 flex items-center justify-center text-saffa-green flex-shrink-0">
+                        <Database className="w-5 h-5" />
+                      </div>
+                      <div>
+                        <h3 className="text-sm font-bold text-gray-800">Koneksi Spreadsheet Google Sheets (Saffa Live)</h3>
+                        <p className="text-xs text-gray-500 mt-0.5 leading-relaxed">
+                          Hubungkan aplikasi pratinjau ini secara langsung ke Google Sheets Anda dengan menempelkan URL Web App hasil deploy Apps Script.
+                        </p>
+                      </div>
+                    </div>
+                    
+                    <div className="flex items-center gap-2 self-start md:self-center">
+                      <span className="text-xs font-semibold text-gray-500">Status:</span>
+                      {isLiveMode && webAppUrl ? (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-bold bg-green-100 text-green-800">
+                          <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse mr-1.5"></span>
+                          Terhubung (LIVE)
+                        </span>
+                      ) : (
+                        <span className="inline-flex items-center px-2.5 py-1 rounded-full text-xs font-semibold bg-gray-100 text-gray-600">
+                          <span className="w-2 h-2 rounded-full bg-gray-400 mr-1.5"></span>
+                          Offline (Lokal)
+                        </span>
+                      )}
+                    </div>
+                  </div>
+
+                  <div className="mt-4 pt-4 border-t border-white/60 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                    <div className="md:col-span-8">
+                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">
+                        Google Apps Script Web App URL
+                      </label>
+                      <input 
+                        type="url"
+                        value={webAppUrl}
+                        onChange={(e) => {
+                          const val = e.target.value.trim();
+                          setWebAppUrl(val);
+                          localStorage.setItem('saffa_web_app_url', val);
+                        }}
+                        placeholder="https://script.google.com/macros/s/AKfyby.../exec"
+                        className="w-full px-3 py-2 bg-white/70 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#78b928]/30 focus:border-transparent font-mono"
+                      />
+                    </div>
+                    
+                    <div className="md:col-span-4 flex gap-2 h-9 self-end">
+                      <button
+                        onClick={() => {
+                          if (!webAppUrl) {
+                            triggerToast('Harap masukkan URL Web App Google Script terlebih dahulu!', 'error');
+                            return;
+                          }
+                          const nextMode = !isLiveMode;
+                          setIsLiveMode(nextMode);
+                          localStorage.setItem('saffa_is_live_mode', String(nextMode));
+                          if (nextMode) {
+                            fetchLiveTransactions(webAppUrl);
+                          } else {
+                            // Offline, reset to local transactions
+                            const localData = localStorage.getItem('saffa_react_data');
+                            if (localData) {
+                              setTransactions(JSON.parse(localData));
+                            } else {
+                              setTransactions(DEFAULT_TRANSACTIONS);
+                            }
+                            triggerToast('Beralih kembali ke mode penyimpanan lokal (offline).', 'success');
+                          }
+                        }}
+                        className={`flex-1 h-full px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                          isLiveMode 
+                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-sm' 
+                            : 'bg-saffa-green hover:bg-saffa-green-hover text-white shadow-sm shadow-green-100'
+                        }`}
+                      >
+                        {isLoadingLive ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : isLiveMode ? (
+                          <>
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Matikan Live
+                          </>
+                        ) : (
+                          <>
+                            <Database className="w-3.5 h-3.5" />
+                            Hubungkan Live
+                          </>
+                        )}
+                      </button>
+
+                      {isLiveMode && (
+                        <button
+                          onClick={() => fetchLiveTransactions()}
+                          disabled={isLoadingLive}
+                          className="px-3 h-full bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm"
+                          title="Refresh Data dari Sheets"
+                        >
+                          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLive ? 'animate-spin' : ''}`} />
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                  
+                  <div className="mt-2 text-[11px] text-gray-500 leading-relaxed font-medium">
+                    {isLiveMode ? (
+                      <span className="text-[#78b928] font-bold flex items-center gap-1">
+                        <CheckCircle className="w-3 h-3 flex-shrink-0" />
+                        Aplikasi saat ini membaca dan menulis data langsung ke Google Sheets Anda!
+                      </span>
+                    ) : (
+                      <span>
+                        💡 <strong>Cara Hubungkan Live:</strong> Salin script dari tab <strong>Dapatkan Kode GAS</strong>, pasang di Google Sheets Anda, Deploy sebagai <strong>Web App</strong>, lalu tempel URL-nya di atas dan klik <strong>Hubungkan Live</strong>.
+                      </span>
+                    )}
                   </div>
                 </div>
 
