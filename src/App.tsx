@@ -30,6 +30,10 @@ const OUTLETS_DATA = [
 const OUTLETS = OUTLETS_DATA.flatMap(r => r.items);
 const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-103210-0000.png';
 
+// Default Google Apps Script URL.
+// Anda dapat memasukkan URL Web App hasil deploy Apps Script Anda di sini agar terkunci otomatis untuk semua pengguna.
+const DEFAULT_WEB_APP_URL = '';
+
 // Interfaces
 interface Transaction {
   id: string;
@@ -110,10 +114,36 @@ export default function App() {
 
   // Google Sheets Web App URL integration
   const [webAppUrl, setWebAppUrl] = useState<string>(() => {
-    return localStorage.getItem('saffa_web_app_url') || '';
+    // 1. Periksa parameter query URL (?webapp=... atau ?url=...)
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const urlParam = params.get('webapp') || params.get('url');
+      if (urlParam) {
+        localStorage.setItem('saffa_web_app_url', urlParam);
+        localStorage.setItem('saffa_is_live_mode', 'true');
+        return urlParam;
+      }
+    }
+    // 2. Periksa localStorage
+    const saved = localStorage.getItem('saffa_web_app_url');
+    if (saved) return saved;
+    // 3. Gunakan URL bawaan jika ada
+    return DEFAULT_WEB_APP_URL || '';
   });
   const [isLiveMode, setIsLiveMode] = useState<boolean>(() => {
-    return localStorage.getItem('saffa_is_live_mode') === 'true';
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      if (params.get('webapp') || params.get('url')) {
+        return true;
+      }
+    }
+    const savedMode = localStorage.getItem('saffa_is_live_mode');
+    if (savedMode !== null) {
+      return savedMode === 'true';
+    }
+    // Jika ada URL webAppUrl, otomatis aktifkan Live Mode
+    const initialUrl = (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('webapp') || new URLSearchParams(window.location.search).get('url') : '') || localStorage.getItem('saffa_web_app_url') || DEFAULT_WEB_APP_URL;
+    return !!initialUrl;
   });
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(false);
 
@@ -1606,7 +1636,30 @@ function deleteData(rowId) {
                     </div>
                   </div>
                   
-                  <div className="mt-2 text-[11px] text-gray-500 leading-relaxed font-medium">
+                  {/* SHAREABLE LOCKED LINK BLOCK */}
+                  {webAppUrl && (
+                    <div className="mt-4 p-3 bg-green-50/50 border border-green-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                      <div className="flex-1 min-w-0">
+                        <span className="block text-[10px] uppercase font-bold text-green-700 tracking-wider">Tautan Auto-Integrasi Terkunci (Siap Bagikan)</span>
+                        <p className="text-[11px] text-gray-600 font-mono truncate select-all mt-0.5">
+                          {`${window.location.origin}${window.location.pathname}?webapp=${encodeURIComponent(webAppUrl)}`}
+                        </p>
+                      </div>
+                      <button
+                        onClick={() => {
+                          const link = `${window.location.origin}${window.location.pathname}?webapp=${encodeURIComponent(webAppUrl)}`;
+                          navigator.clipboard.writeText(link);
+                          triggerToast('Tautan integrasi berhasil disalin! Siapapun yang membuka tautan ini akan langsung terhubung ke Google Sheets Anda secara otomatis.', 'success');
+                        }}
+                        className="px-3.5 py-1.5 bg-saffa-green hover:bg-saffa-green-hover text-white text-[11px] font-bold rounded-xl flex items-center justify-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-green-100 flex-shrink-0"
+                      >
+                        <Copy className="w-3.5 h-3.5" />
+                        Salin Tautan Kunci
+                      </button>
+                    </div>
+                  )}
+
+                  <div className="mt-3 text-[11px] text-gray-500 leading-relaxed font-medium space-y-1">
                     {isLiveMode ? (
                       <span className="text-[#78b928] font-bold flex items-center gap-1">
                         <CheckCircle className="w-3 h-3 flex-shrink-0" />
@@ -1617,6 +1670,9 @@ function deleteData(rowId) {
                         💡 <strong>Cara Hubungkan Live:</strong> Salin script dari tab <strong>Dapatkan Kode GAS</strong>, pasang di Google Sheets Anda, Deploy sebagai <strong>Web App</strong>, lalu tempel URL-nya di atas dan klik <strong>Hubungkan Live</strong>.
                       </span>
                     )}
+                    <span className="block text-gray-400">
+                      🔒 <strong>Kunci Permanen untuk Semua:</strong> Anda juga dapat mengunci URL ini secara permanen di dalam berkas kode (ubah variabel <code>DEFAULT_WEB_APP_URL</code> di <code>App.tsx</code>) sehingga semua pengguna terhubung secara default tanpa parameter tambahan.
+                    </span>
                   </div>
                 </div>
 
