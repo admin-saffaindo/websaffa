@@ -247,29 +247,31 @@ export default function App() {
       chartInstanceRef.current.destroy();
     }
 
-    // Create new chart instance
+    // Combine cash and qris into total daily/outlet omset
+    const totalData = cashData.map((cash, idx) => cash + qrisData[idx]);
+
+    // Create new chart instance with a premium line design
     chartInstanceRef.current = new Chart(ctx, {
-      type: 'bar',
+      type: 'line',
       data: {
         labels: labels,
         datasets: [
           {
-            label: 'Cash (Tunai)',
-            data: cashData,
-            backgroundColor: 'rgba(120, 185, 40, 0.85)', // Saffa Green
-            borderColor: '#78b928',
-            borderWidth: 1.5,
-            borderRadius: 8,
-            borderSkipped: false,
-          },
-          {
-            label: 'QRIS (Non-Tunai)',
-            data: qrisData,
-            backgroundColor: 'rgba(233, 0, 118, 0.85)', // Saffa Pink
-            borderColor: '#e90076',
-            borderWidth: 1.5,
-            borderRadius: 8,
-            borderSkipped: false,
+            label: 'Total Omset',
+            data: totalData,
+            borderColor: '#e90076', // Saffa Pink
+            backgroundColor: 'rgba(233, 0, 118, 0.08)', // Soft gradient area fill
+            borderWidth: 3,
+            tension: 0.35, // Smooth bezier curves
+            fill: true,
+            pointBackgroundColor: '#e90076',
+            pointBorderColor: '#ffffff',
+            pointBorderWidth: 2,
+            pointRadius: 4,
+            pointHoverRadius: 6,
+            pointHoverBackgroundColor: '#e90076',
+            pointHoverBorderColor: '#ffffff',
+            pointHoverBorderWidth: 2,
           }
         ]
       },
@@ -299,7 +301,7 @@ export default function App() {
         },
         scales: {
           x: {
-            stacked: true,
+            stacked: false,
             grid: {
               display: false
             },
@@ -311,7 +313,7 @@ export default function App() {
             }
           },
           y: {
-            stacked: true,
+            stacked: false,
             beginAtZero: true,
             grid: {
               color: 'rgba(0, 0, 0, 0.05)'
