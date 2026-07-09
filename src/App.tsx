@@ -54,6 +54,37 @@ const generateSimpleId = () => {
   return firstLetter + numStr + lastLetter;
 };
 
+// Helper to generate professional Option 3 unique sequential ID (Format: SF-YYMMDD-NN)
+const generateOpsi3Id = (tanggalStr: string, currentTransactions: Transaction[]) => {
+  let yy = '26';
+  let mm = '01';
+  let dd = '01';
+  if (tanggalStr && tanggalStr.length >= 10) {
+    const parts = tanggalStr.split('-');
+    if (parts.length === 3) {
+      yy = parts[0].substring(2);
+      mm = parts[1];
+      dd = parts[2];
+    }
+  }
+  const datePrefix = `SF-${yy}${mm}${dd}-`;
+  
+  // Find transactions with same prefix to get the next counter
+  let maxSeq = 0;
+  currentTransactions.forEach(t => {
+    if (t.id && t.id.startsWith(datePrefix)) {
+      const seqStr = t.id.substring(datePrefix.length);
+      const seqNum = parseInt(seqStr, 10);
+      if (!isNaN(seqNum) && seqNum > maxSeq) {
+        maxSeq = seqNum;
+      }
+    }
+  });
+  
+  const nextSeq = maxSeq + 1;
+  return `${datePrefix}${String(nextSeq).padStart(2, '0')}`;
+};
+
 // Initial Mock Seed Data
 const DEFAULT_TRANSACTIONS: Transaction[] = [
   { id: 'D1799C', tanggal: '2026-07-07', outlet: 'KM 8 Atas', cash: 450000, qris: 150000, total: 600000, timestamp: '07/07/2026, 17:15:00' },
@@ -522,7 +553,7 @@ export default function App() {
           setIsLoadingLive(false);
         });
     } else {
-      const generatedId = generateSimpleId();
+      const generatedId = generateOpsi3Id(tanggal, transactions);
       const newTx: Transaction = {
         id: generatedId,
         tanggal,
@@ -667,6 +698,63 @@ function generateSimpleId() {
 }
 
 /**
+ * Opsi 3: Membuat ID unik terstruktur berbasis Tanggal Transaksi dan Nomor Urut (Format: SF-YYMMDD-NN)
+ * Contoh: SF-260709-01 (Transaksi ke-1 pada tanggal 9 Juli 2026)
+ */
+function generateOpsi3Id(tanggalStr) {
+  try {
+    const sheet = getSheet();
+    const lastRow = sheet.getLastRow();
+    
+    // Parse tanggal untuk mengambil format YYMMDD (e.g., "2026-07-09" -> "260709")
+    let yy = "26";
+    let mm = "01";
+    let dd = "01";
+    if (tanggalStr && tanggalStr.length >= 10) {
+      const parts = tanggalStr.split("-");
+      if (parts.length === 3) {
+        yy = parts[0].substring(2);
+        mm = parts[1];
+        dd = parts[2];
+      }
+    }
+    const datePrefix = "SF-" + yy + mm + dd + "-";
+    
+    let counter = 1;
+    if (lastRow > 1) {
+      const numCols = sheet.getLastColumn();
+      const firstVal = sheet.getRange(1, 1).getValue();
+      const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
+      
+      if (isNewFormat) {
+        const idRange = sheet.getRange(2, 1, lastRow - 1, 1);
+        const existingIds = idRange.getValues().map(row => String(row[0]));
+        
+        // Cari ID yang berawalan datePrefix yang sama, lalu cari nomor urut tertinggi
+        let maxSeq = 0;
+        existingIds.forEach(id => {
+          if (id.indexOf(datePrefix) === 0) {
+            const seqStr = id.substring(datePrefix.length);
+            const seqNum = parseInt(seqStr, 10);
+            if (!isNaN(seqNum) && seqNum > maxSeq) {
+              maxSeq = seqNum;
+            }
+          }
+        });
+        counter = maxSeq + 1;
+      }
+    }
+    
+    // Format counter menjadi 2 digit (misal: 01, 02, dst)
+    const counterStr = String(counter).padStart(2, '0');
+    return datePrefix + counterStr;
+  } catch (e) {
+    // Fallback jika terjadi error
+    return "SF-" + new Date().getTime().toString().substring(5);
+  }
+}
+
+/**
  * Membaca semua data transaksi dari Google Sheets
  */
 function getData() {
@@ -752,7 +840,7 @@ function addData(tanggal, outlet, cash, qris) {
     const qrisVal = Number(qris) || 0;
     const totalVal = cashVal + qrisVal;
     const timestamp = new Date().toLocaleString("id-ID");
-    const transactionId = generateSimpleId();
+    const transactionId = generateOpsi3Id(tanggal);
     
     const numCols = sheet.getLastColumn();
     const firstVal = sheet.getRange(1, 1).getValue();
