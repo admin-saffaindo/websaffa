@@ -6,8 +6,10 @@ import indexHtmlString from '../Index.html?raw';
 import { 
   Lock, ArrowRight, LogOut, Wallet, Banknote, QrCode, Database, 
   PlusCircle, Save, BarChart3, History, Search, Trash2, Info, 
-  CheckCircle, AlertCircle, FileCode, Copy, RefreshCw, BookOpen
+  CheckCircle, AlertCircle, FileCode, Copy, RefreshCw, BookOpen,
+  FileDown
 } from 'lucide-react';
+import { exportToPDF } from './utils/pdfExport';
 
 // Register Chart.js modules
 Chart.register(...registerables);
@@ -578,6 +580,24 @@ export default function App() {
 
     setTransactions(DEFAULT_TRANSACTIONS);
     triggerToast("Data bawaan berhasil dipulihkan.", "success");
+  };
+
+  // Export current period data to PDF
+  const handleExportPDF = () => {
+    try {
+      exportToPDF(
+        transactions,
+        chartView,
+        chartDate,
+        OUTLETS,
+        'saffaindo@gmail.com',
+        isLiveMode
+      );
+      triggerToast('Laporan PDF berhasil diunduh!', 'success');
+    } catch (error: any) {
+      console.error(error);
+      triggerToast('Gagal mencetak PDF: ' + error.message, 'error');
+    }
   };
 
   // Calculate Aggregates for Cards
@@ -1338,10 +1358,21 @@ function deleteData(rowId) {
                         </div>
                       </div>
 
-                      {/* Period Description Banner */}
-                      <div className="text-xs text-gray-600 font-semibold mb-3 flex items-center gap-2">
-                        <span className="px-2 py-0.5 bg-pink-100 text-saffa-pink rounded-lg text-[9px] font-bold uppercase tracking-wide">Periode Aktif</span>
-                        <span>{chartAnalysis.description}</span>
+                      {/* Period Description Banner & PDF Export Button */}
+                      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 bg-white/40 backdrop-blur-md p-3 rounded-2xl border border-white/60">
+                        <div className="text-xs text-gray-600 font-semibold flex items-center gap-2">
+                          <span className="px-2 py-0.5 bg-pink-100 text-saffa-pink rounded-lg text-[9px] font-bold uppercase tracking-wide">Periode Aktif</span>
+                          <span>{chartAnalysis.description}</span>
+                        </div>
+                        
+                        <button
+                          type="button"
+                          onClick={handleExportPDF}
+                          className="px-4 py-2 bg-gradient-to-r from-saffa-pink to-pink-600 hover:from-saffa-pink-hover hover:to-pink-700 text-white font-bold rounded-xl shadow-md shadow-pink-500/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs cursor-pointer w-full sm:w-auto"
+                        >
+                          <FileDown className="w-4 h-4" />
+                          Cetak Laporan PDF
+                        </button>
                       </div>
  
                       {/* CHART CONTAINER */}
