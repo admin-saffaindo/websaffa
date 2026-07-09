@@ -91,7 +91,7 @@ export default function App() {
       try {
         const parsed = JSON.parse(localData);
         if (Array.isArray(parsed)) {
-          const idRegex = /^[A-Z]\d{4}[A-Z]$/;
+          const idRegex = /^[A-Z]\d{4}[A-Z]$/i;
           let modified = false;
           const migrated = parsed.map((item: any) => {
             if (!item.id || !idRegex.test(item.id)) {
@@ -240,8 +240,9 @@ export default function App() {
       const data = await response.json();
       if (Array.isArray(data)) {
         const formatted: Transaction[] = data.map((item: any) => {
-          let finalId = item.id;
-          if (!finalId || finalId.startsWith('row_')) {
+          let finalId = item.id ? String(item.id).trim() : "";
+          const idRegex = /^[A-Z]\d{4}[A-Z]$/i;
+          if (!finalId || finalId.startsWith('row_') || !idRegex.test(finalId)) {
             // Generate a deterministic simple alphanumeric ID based on rowId (Format: [Letter][4 digits][Letter])
             const rowNum = Number(item.rowId) || 0;
             const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -656,7 +657,8 @@ function getData() {
     const numCols = sheet.getLastColumn();
     const range = sheet.getRange(2, 1, lastRow - 1, numCols);
     const values = range.getValues();
-    const isNewFormat = numCols >= 7 && sheet.getRange(1, 1).getValue() === "ID";
+    const firstVal = sheet.getRange(1, 1).getValue();
+    const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
     return values.map((row, index) => {
       let id = "";
@@ -691,7 +693,7 @@ function getData() {
         const year = dateVal.getFullYear();
         const month = String(dateVal.getMonth() + 1).padStart(2, '0');
         const day = String(dateVal.getDate()).padStart(2, '0');
-        dateString = \`\${year}-\\ \${month}-\\ \${day}\`.replace(/\\s/g, '');
+        dateString = \`\${year}-\${month}-\${day}\`;
       } else {
         dateString = String(dateVal);
       }
@@ -732,7 +734,8 @@ function addData(tanggal, outlet, cash, qris) {
     const transactionId = generateSimpleId();
     
     const numCols = sheet.getLastColumn();
-    const isNewFormat = numCols >= 7 && sheet.getRange(1, 1).getValue() === "ID";
+    const firstVal = sheet.getRange(1, 1).getValue();
+    const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
     if (isNewFormat) {
       sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);

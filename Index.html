@@ -571,8 +571,9 @@
 
     function onFetchSuccess(data) {
       dbData = (data || []).map(function(item) {
-        var finalId = item.id;
-        if (!finalId || (typeof finalId === 'string' && finalId.indexOf('row_') === 0)) {
+        var finalId = item.id ? String(item.id).trim() : "";
+        var idRegex = /^[A-Z]\d{4}[A-Z]$/i;
+        if (!finalId || (typeof finalId === 'string' && finalId.indexOf('row_') === 0) || !idRegex.test(finalId)) {
           var rowNum = Number(item.rowId) || 0;
           var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
           var firstLetter = letters.charAt((rowNum * 7) % 26);

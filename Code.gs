@@ -152,7 +152,8 @@ function getData() {
     const numCols = sheet.getLastColumn();
     const range = sheet.getRange(2, 1, lastRow - 1, numCols);
     const values = range.getValues();
-    const isNewFormat = numCols >= 7 && sheet.getRange(1, 1).getValue() === "ID";
+    const firstVal = sheet.getRange(1, 1).getValue();
+    const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
     // Konversi baris ke bentuk JSON array agar mudah diolah di frontend
     return values.map((row, index) => {
@@ -235,7 +236,8 @@ function addData(tanggal, outlet, cash, qris) {
     const transactionId = generateSimpleId();
     
     const numCols = sheet.getLastColumn();
-    const isNewFormat = numCols >= 7 && sheet.getRange(1, 1).getValue() === "ID";
+    const firstVal = sheet.getRange(1, 1).getValue();
+    const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
     if (isNewFormat) {
       // Tambahkan baris baru dengan format 7 kolom
