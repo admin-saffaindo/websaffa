@@ -303,7 +303,11 @@ export default function App() {
       }
     } catch (err: any) {
       console.error(err);
-      triggerToast('Gagal sinkronisasi data: ' + err.message, 'error');
+      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('fetch') || err.message.includes('NetworkError'))) {
+        triggerToast('Koneksi gagal! Pastikan internet Anda aktif, URL Google Sheets Web App benar, dan izin aksesnya telah diatur ke "Anyone" (Siapa saja).', 'error');
+      } else {
+        triggerToast('Gagal sinkronisasi data: ' + err.message, 'error');
+      }
     } finally {
       setIsLoadingLive(false);
     }
@@ -547,7 +551,11 @@ export default function App() {
           }
         })
         .catch(err => {
-          triggerToast('Gagal menghubungi Google Sheets: ' + err.message, 'error');
+          if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('fetch') || err.message.includes('NetworkError'))) {
+            triggerToast('Gagal menghubungi Google Sheets! Pastikan internet Anda aktif dan URL Web App benar dengan izin akses "Anyone".', 'error');
+          } else {
+            triggerToast('Gagal menghubungi Google Sheets: ' + err.message, 'error');
+          }
         })
         .finally(() => {
           setIsLoadingLive(false);
@@ -593,7 +601,11 @@ export default function App() {
           }
         })
         .catch(err => {
-          triggerToast('Gagal menghubungi Google Sheets: ' + err.message, 'error');
+          if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('fetch') || err.message.includes('NetworkError'))) {
+            triggerToast('Gagal menghubungi Google Sheets! Pastikan internet Anda aktif dan URL Web App benar dengan izin akses "Anyone".', 'error');
+          } else {
+            triggerToast('Gagal menghubungi Google Sheets: ' + err.message, 'error');
+          }
         })
         .finally(() => {
           setIsLoadingLive(false);
