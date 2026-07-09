@@ -700,7 +700,7 @@ function deleteData(rowId) {
                   {authError && (
                     <p className="mt-2 text-xs text-saffa-pink font-semibold flex items-center gap-1">
                       <AlertCircle className="w-3.5 h-3.5" />
-                      Sandi salah! Gunakan sandi 'saffaseiza123'.
+                      Sandi salah! Silakan coba lagi.
                     </p>
                   )}
                 </div>
@@ -713,11 +713,6 @@ function deleteData(rowId) {
                   <ArrowRight className="w-4 h-4" />
                 </button>
               </form>
-
-              {/* Quick tip for reviewers */}
-              <div className="mt-6 p-3 bg-green-50 border border-green-100 rounded-2xl text-center text-xs text-saffa-green font-medium">
-                Sandi demo: <code className="bg-white px-1.5 py-0.5 rounded border border-green-200">saffaseiza123</code>
-              </div>
 
               <div className="mt-8 text-center text-xs text-gray-400">
                 &copy; 2026 Saffa Bubur Bayi • Hak Cipta Dilindungi.
