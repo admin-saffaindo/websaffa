@@ -405,6 +405,7 @@
     let dbData = [];
     let chartInstance = null;
     const CORRECT_PASSWORD = 'saffaseiza123';
+    const ADMIN_PASSWORD = 'omsetnaik';
     const OUTLETS_DATA = [
       {
         region: 'Wilayah Tanjungpinang (8 Lokasi)',
@@ -463,7 +464,7 @@
       const passwordVal = document.getElementById('password').value;
       const errorEl = document.getElementById('loginError');
 
-      if (passwordVal === CORRECT_PASSWORD) {
+      if (passwordVal === CORRECT_PASSWORD || passwordVal === ADMIN_PASSWORD) {
         errorEl.classList.add('hidden');
         sessionStorage.setItem('isLoggedIn', 'true');
         showDashboard();

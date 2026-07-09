@@ -14,6 +14,7 @@ Chart.register(...registerables);
 
 // Hardcoded configs
 const CORRECT_PASSWORD = 'saffaseiza123';
+const ADMIN_PASSWORD = 'omsetnaik';
 const OUTLETS_DATA = [
   {
     region: 'Wilayah Tanjungpinang (8 Lokasi)',
@@ -52,6 +53,9 @@ export default function App() {
   const [activeTab, setActiveTab] = useState<'app' | 'gas'>('app');
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(() => {
     return sessionStorage.getItem('react_isLoggedIn') === 'true';
+  });
+  const [isAdmin, setIsAdmin] = useState<boolean>(() => {
+    return sessionStorage.getItem('react_isAdmin') === 'true';
   });
   
   // Auth states
@@ -352,9 +356,18 @@ export default function App() {
     e.preventDefault();
     if (passwordInput === CORRECT_PASSWORD) {
       setAuthError(false);
+      setIsAdmin(false);
       setIsLoggedIn(true);
       sessionStorage.setItem('react_isLoggedIn', 'true');
+      sessionStorage.setItem('react_isAdmin', 'false');
       triggerToast('Akses dikabulkan! Selamat datang di Dashboard.', 'success');
+    } else if (passwordInput === ADMIN_PASSWORD) {
+      setAuthError(false);
+      setIsAdmin(true);
+      setIsLoggedIn(true);
+      sessionStorage.setItem('react_isLoggedIn', 'true');
+      sessionStorage.setItem('react_isAdmin', 'true');
+      triggerToast('Akses Admin dikabulkan! Selamat datang.', 'success');
     } else {
       setAuthError(true);
       triggerToast('Kata sandi salah!', 'error');
@@ -363,8 +376,11 @@ export default function App() {
 
   const handleLogout = () => {
     setIsLoggedIn(false);
+    setIsAdmin(false);
     sessionStorage.removeItem('react_isLoggedIn');
+    sessionStorage.removeItem('react_isAdmin');
     setPasswordInput('');
+    setActiveTab('app');
     triggerToast('Anda telah keluar dari dashboard.', 'success');
   };
 
@@ -740,7 +756,7 @@ function deleteData(rowId) {
                       Saffa Bubur Bayi
                     </h1>
                     <p className="text-[10px] md:text-xs text-[#78b928] font-semibold tracking-wide uppercase mt-1">
-                      Dashboard Keuangan & Ekspor GAS
+                      {isAdmin ? 'Dashboard Keuangan' : 'Dashboard Keuangan & Ekspor GAS'}
                     </p>
                   </div>
                 </div>
@@ -748,30 +764,32 @@ function deleteData(rowId) {
                 {/* Navigation and Actions */}
                 <div className="flex items-center gap-3 flex-wrap">
                   {/* Mode Selector */}
-                  <div className="bg-white/40 backdrop-blur-md p-1 rounded-2xl flex border border-white/60 shadow-sm">
-                    <button
-                      onClick={() => setActiveTab('app')}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        activeTab === 'app' 
-                          ? 'bg-[#e90076] text-white shadow-md' 
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
-                      }`}
-                    >
-                      <BarChart3 className="w-3.5 h-3.5" />
-                      Aplikasi Demo
-                    </button>
-                    <button
-                      onClick={() => setActiveTab('gas')}
-                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                        activeTab === 'gas' 
-                          ? 'bg-[#e90076] text-white shadow-md' 
-                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
-                      }`}
-                    >
-                      <FileCode className="w-3.5 h-3.5" />
-                      Dapatkan Kode GAS
-                    </button>
-                  </div>
+                  {!isAdmin && (
+                    <div className="bg-white/40 backdrop-blur-md p-1 rounded-2xl flex border border-white/60 shadow-sm">
+                      <button
+                        onClick={() => setActiveTab('app')}
+                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          activeTab === 'app' 
+                            ? 'bg-[#e90076] text-white shadow-md' 
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
+                        }`}
+                      >
+                        <BarChart3 className="w-3.5 h-3.5" />
+                        Aplikasi Demo
+                      </button>
+                      <button
+                        onClick={() => setActiveTab('gas')}
+                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                          activeTab === 'gas' 
+                            ? 'bg-[#e90076] text-white shadow-md' 
+                            : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
+                        }`}
+                      >
+                        <FileCode className="w-3.5 h-3.5" />
+                        Dapatkan Kode GAS
+                      </button>
+                    </div>
+                  )}
 
                   {/* Logout Button */}
                   <button 
@@ -789,19 +807,21 @@ function deleteData(rowId) {
             {/* TAB CONTENT 1: INTERACTIVE APP PREVIEW */}
             {activeTab === 'app' && (
               <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">                 {/* RECTOR BULLETINS */}
-                <div className="p-4 bg-emerald-50/80 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-medium text-emerald-800">
-                  <div className="flex items-center gap-2">
-                    <CheckCircle className="w-4 h-4 text-saffa-green flex-shrink-0" />
-                    <span>Halaman ini mensimulasikan integrasi real-time Google Apps Script & Google Sheets menggunakan penyimpanan lokal.</span>
+                {!isAdmin && (
+                  <div className="p-4 bg-emerald-50/80 border border-emerald-100 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-4 text-xs font-medium text-emerald-800">
+                    <div className="flex items-center gap-2">
+                      <CheckCircle className="w-4 h-4 text-saffa-green flex-shrink-0" />
+                      <span>Halaman ini mensimulasikan integrasi real-time Google Apps Script & Google Sheets menggunakan penyimpanan lokal.</span>
+                    </div>
+                    <button 
+                      onClick={handleResetData}
+                      className="self-start sm:self-auto px-3 py-1.5 bg-white hover:bg-emerald-100 border border-emerald-200 text-saffa-green rounded-lg font-semibold transition-all flex items-center gap-1 cursor-pointer"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      Pulihkan Seed Data
+                    </button>
                   </div>
-                  <button 
-                    onClick={handleResetData}
-                    className="self-start sm:self-auto px-3 py-1.5 bg-white hover:bg-emerald-100 border border-emerald-200 text-saffa-green rounded-lg font-semibold transition-all flex items-center gap-1 cursor-pointer"
-                  >
-                    <RefreshCw className="w-3.5 h-3.5" />
-                    Pulihkan Seed Data
-                  </button>
-                </div>
+                )}
 
                 {/* GOOGLE SHEETS LIVE CONNECTION PANEL */}
                 <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-lg rounded-[2rem] p-5">
