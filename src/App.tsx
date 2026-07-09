@@ -239,16 +239,29 @@ export default function App() {
       }
       const data = await response.json();
       if (Array.isArray(data)) {
-        const formatted: Transaction[] = data.map((item: any) => ({
-          id: item.id || `row_${item.rowId}`,
-          tanggal: item.tanggal,
-          outlet: item.outlet,
-          cash: item.cash,
-          qris: item.qris,
-          total: item.total,
-          timestamp: item.timestamp || '',
-          rowId: item.rowId
-        }));
+        const formatted: Transaction[] = data.map((item: any) => {
+          let finalId = item.id;
+          if (!finalId || finalId.startsWith('row_')) {
+            // Generate a deterministic simple alphanumeric ID based on rowId (Format: [Letter][4 digits][Letter])
+            const rowNum = Number(item.rowId) || 0;
+            const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+            const firstLetter = letters.charAt((rowNum * 7) % 26);
+            const lastLetter = letters.charAt((rowNum * 13) % 26);
+            const numVal = (1700 + rowNum) % 10000;
+            const numStr = String(numVal).padStart(4, '0');
+            finalId = `${firstLetter}${numStr}${lastLetter}`;
+          }
+          return {
+            id: finalId,
+            tanggal: item.tanggal,
+            outlet: item.outlet,
+            cash: item.cash,
+            qris: item.qris,
+            total: item.total,
+            timestamp: item.timestamp || '',
+            rowId: item.rowId
+          };
+        });
         setTransactions(formatted);
         triggerToast('Sinkronisasi data Google Sheets berhasil!', 'success');
       } else {

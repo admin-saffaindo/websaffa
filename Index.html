@@ -570,7 +570,19 @@
     }
 
     function onFetchSuccess(data) {
-      dbData = data || [];
+      dbData = (data || []).map(function(item) {
+        var finalId = item.id;
+        if (!finalId || (typeof finalId === 'string' && finalId.indexOf('row_') === 0)) {
+          var rowNum = Number(item.rowId) || 0;
+          var letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
+          var firstLetter = letters.charAt((rowNum * 7) % 26);
+          var lastLetter = letters.charAt((rowNum * 13) % 26);
+          var numVal = (1700 + rowNum) % 10000;
+          var numStr = String(numVal).padStart(4, '0');
+          finalId = firstLetter + numStr + lastLetter;
+        }
+        return Object.assign({}, item, { id: finalId });
+      });
       updateDashboardData();
     }
 
