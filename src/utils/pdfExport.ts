@@ -54,13 +54,25 @@ const getMonthYearIndo = (dateStr: string) => {
   return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 };
 
-export const exportToPDF = (
+// Helper to asynchronously load image as HTMLImageElement
+const loadImg = (url: string): Promise<HTMLImageElement> => {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    img.crossOrigin = 'anonymous';
+    img.onload = () => resolve(img);
+    img.onerror = (e) => reject(e);
+    img.src = url;
+  });
+};
+
+export const exportToPDF = async (
   transactions: Transaction[],
   periodType: 'outlet' | 'weekly' | 'monthly',
   selectedDate: string,
   outlets: string[],
   userEmail: string,
-  isLiveMode: boolean
+  isLiveMode: boolean,
+  logoUrl?: string
 ) => {
   let title = '';
   let periodLabel = '';
@@ -111,20 +123,35 @@ export const exportToPDF = (
     format: 'a4'
   });
 
+  // Try loading the logo image asynchronously
+  let imgElement: HTMLImageElement | null = null;
+  if (logoUrl) {
+    try {
+      imgElement = await loadImg(logoUrl);
+    } catch (e) {
+      console.error('Gagal memuat logo Saffa, menggunakan badge vektor bawaan:', e);
+    }
+  }
+
   // --- DRAW BRAND HEADER ---
   // Top green accent bar
   doc.setFillColor(120, 185, 40); // Saffa Green (#78b928)
   doc.rect(0, 0, 210, 4, 'F');
 
-  // Saffa logo badge (vector emblem)
-  doc.setFillColor(120, 185, 40); // Saffa Green
-  doc.roundedRect(15, 10, 10, 10, 2, 2, 'F');
+  if (imgElement) {
+    // Draw Saffa logo
+    doc.addImage(imgElement, 'PNG', 15, 9, 11, 11);
+  } else {
+    // Saffa logo badge (vector emblem fallback)
+    doc.setFillColor(120, 185, 40); // Saffa Green
+    doc.roundedRect(15, 10, 10, 10, 2, 2, 'F');
 
-  // White "S" inside the green emblem
-  doc.setTextColor(255, 255, 255);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(8);
-  doc.text('S', 19, 17);
+    // White "S" inside the green emblem
+    doc.setTextColor(255, 255, 255);
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(8);
+    doc.text('S', 19, 17);
+  }
 
   // "SAFFA ID" brand name
   doc.setTextColor(33, 41, 54); // Dark slate
@@ -226,25 +253,62 @@ export const exportToPDF = (
   });
 
   // --- OUTLET TURNOVER SUMMARY TABLE ---
-  const outletData = outlets.map(o => {
-    const oTrans = filtered.filter(t => t.outlet === o);
-    const cashSum = oTrans.reduce((s, t) => s + t.cash, 0);
-    const qrisSum = oTrans.reduce((s, t) => s + t.qris, 0);
-    const totalSum = cashSum + qrisSum;
-    const contrib = grandTotal > 0 ? (totalSum / grandTotal) * 100 : 0;
-    return { name: o, cash: cashSum, qris: qrisSum, total: totalSum, contrib };
-  });
+  const OUTLETS_REGIONS = [
+    {
+      region: 'Wilayah Tanjungpinang (8 Lokasi)',
+      items: ['KM 8 Atas', 'Poltekkes', 'Simpang Kios Djalal', 'Bincen', 'Jl. Cinta Damai', 'Ganet', 'Kijang Lama', 'KM 16 Arah Uban']
+    },
+    {
+      region: 'Wilayah Bintan (3 Lokasi)',
+      items: ['KM 18 Arah Kijang', 'Jl. Musi KM 19', 'Simpang 3 Tanah Kuning']
+    }
+  ];
 
-  // Sort outlets by total sales descending
-  const sortedOutletData = [...outletData].sort((a, b) => b.total - a.total);
-  const activeOutletRows = sortedOutletData.map((o, idx) => [
-    idx + 1,
-    o.name,
-    formatRupiah(o.cash),
-    formatRupiah(o.qris),
-    formatRupiah(o.total),
-    `${o.contrib.toFixed(1)}%`
-  ]);
+  const activeOutletRows: any[] = [];
+  let globalIdx = 1;
+
+  OUTLETS_REGIONS.forEach(reg => {
+    // Add region category row
+    activeOutletRows.push([
+      {
+        content: reg.region.toUpperCase(),
+        colSpan: 6,
+        styles: {
+          fillColor: [240, 244, 248],
+          textColor: [33, 41, 54],
+          fontStyle: 'bold',
+          fontSize: 8,
+          halign: 'left',
+          cellPadding: 2.5
+        }
+      }
+    ]);
+
+    // Calculate data for outlets in this region
+    const regionOutletsData = reg.items.map(o => {
+      const oTrans = filtered.filter(t => t.outlet === o);
+      const cashSum = oTrans.reduce((s, t) => s + t.cash, 0);
+      const qrisSum = oTrans.reduce((s, t) => s + t.qris, 0);
+      const totalSum = cashSum + qrisSum;
+      const contrib = grandTotal > 0 ? (totalSum / grandTotal) * 100 : 0;
+      return { name: o, cash: cashSum, qris: qrisSum, total: totalSum, contrib };
+    });
+
+    // Sort outlets inside the region by total sales descending
+    const sortedRegOutlets = [...regionOutletsData].sort((a, b) => b.total - a.total);
+
+    // Append to table rows
+    sortedRegOutlets.forEach(o => {
+      activeOutletRows.push([
+        globalIdx++,
+        o.name,
+        formatRupiah(o.cash),
+        formatRupiah(o.qris),
+        formatRupiah(o.total),
+        `${o.contrib.toFixed(1)}%`
+      ]);
+    });
+  });
 
   const summaryY = (doc as any).lastAutoTable.finalY || 70;
 

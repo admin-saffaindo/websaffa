@@ -583,15 +583,16 @@ export default function App() {
   };
 
   // Export current period data to PDF
-  const handleExportPDF = () => {
+  const handleExportPDF = async () => {
     try {
-      exportToPDF(
+      await exportToPDF(
         transactions,
         chartView,
         chartDate,
         OUTLETS,
         'saffaindo@gmail.com',
-        isLiveMode
+        isLiveMode,
+        LOGO_URL
       );
       triggerToast('Laporan PDF berhasil diunduh!', 'success');
     } catch (error: any) {
