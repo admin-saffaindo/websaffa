@@ -54,6 +54,28 @@ const getMonthYearIndo = (dateStr: string) => {
   return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
 };
 
+// Helper to format input time from timestamp (e.g., "17:15")
+const formatInputTime = (timestampStr: string | undefined) => {
+  if (!timestampStr) return '-';
+  const match = timestampStr.match(/(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?/);
+  if (match) {
+    const hh = match[1].padStart(2, '0');
+    const mm = match[2];
+    return `${hh}:${mm}`;
+  }
+  try {
+    const parsed = new Date(timestampStr);
+    if (!isNaN(parsed.getTime())) {
+      const hh = String(parsed.getHours()).padStart(2, '0');
+      const mm = String(parsed.getMinutes()).padStart(2, '0');
+      return `${hh}:${mm}`;
+    }
+  } catch (e) {
+    // ignore
+  }
+  return timestampStr;
+};
+
 // Helper to asynchronously load image as HTMLImageElement
 const loadImg = (url: string): Promise<HTMLImageElement> => {
   return new Promise((resolve, reject) => {
@@ -376,6 +398,7 @@ export const exportToPDF = async (
     idx + 1,
     t.id,
     formatDateIndoShort(t.tanggal),
+    formatInputTime(t.timestamp),
     t.outlet,
     formatRupiah(t.cash),
     formatRupiah(t.qris),
@@ -385,8 +408,8 @@ export const exportToPDF = async (
   autoTable(doc, {
     startY: outletY + 11,
     margin: { left: 15, right: 15 },
-    head: [['No', 'ID Transaksi', 'Tanggal', 'Outlet', 'Cash', 'QRIS', 'Total']],
-    body: txRows.length > 0 ? txRows : [['-', 'Tidak ada transaksi', '-', '-', '-', '-', '-']],
+    head: [['No', 'ID Transaksi', 'Tanggal', 'Jam Input', 'Outlet', 'Cash', 'QRIS', 'Total']],
+    body: txRows.length > 0 ? txRows : [['-', 'Tidak ada transaksi', '-', '-', '-', '-', '-', '-']],
     theme: 'striped',
     headStyles: {
       fillColor: [120, 185, 40], // Saffa Green header
@@ -402,11 +425,12 @@ export const exportToPDF = async (
     columnStyles: {
       0: { cellWidth: 10, halign: 'center' },
       1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
-      2: { cellWidth: 22 },
-      3: { cellWidth: 43 },
-      4: { cellWidth: 25, halign: 'right' },
+      2: { cellWidth: 20 },
+      3: { cellWidth: 18, halign: 'center' },
+      4: { cellWidth: 32 },
       5: { cellWidth: 25, halign: 'right' },
-      6: { cellWidth: 30, halign: 'right', fontStyle: 'bold' }
+      6: { cellWidth: 25, halign: 'right' },
+      7: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
     }
   });
 

@@ -7,7 +7,7 @@ import {
   Lock, ArrowRight, LogOut, Wallet, Banknote, QrCode, Database, 
   PlusCircle, Save, BarChart3, History, Search, Trash2, Info, 
   CheckCircle, AlertCircle, FileCode, Copy, RefreshCw, BookOpen,
-  FileDown, Store, Calendar, Sparkles, Printer, ChevronDown
+  FileDown, Store, Calendar, Sparkles, Printer, ChevronDown, Clock
 } from 'lucide-react';
 import { exportToPDF } from './utils/pdfExport';
 
@@ -561,6 +561,28 @@ export default function App() {
       "Juli", "Agustus", "September", "Oktober", "November", "Desember"
     ];
     return `${parseInt(parts[2])} ${months[parseInt(parts[1]) - 1]} ${parts[0]}`;
+  };
+
+  const formatInputTime = (timestampStr: string | undefined) => {
+    if (!timestampStr) return '-';
+    // Match something like "17:15:00" or "21.37.44" or "17:15"
+    const match = timestampStr.match(/(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?/);
+    if (match) {
+      const hh = match[1].padStart(2, '0');
+      const mm = match[2];
+      return `${hh}:${mm}`;
+    }
+    try {
+      const parsed = new Date(timestampStr);
+      if (!isNaN(parsed.getTime())) {
+        const hh = String(parsed.getHours()).padStart(2, '0');
+        const mm = String(parsed.getMinutes()).padStart(2, '0');
+        return `${hh}:${mm}`;
+      }
+    } catch (e) {
+      // ignore
+    }
+    return timestampStr;
   };
 
   // Dynamic Validation: Check which outlets are already registered on the selected date
@@ -2282,6 +2304,7 @@ function deleteData(rowId) {
                         <tr>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">ID</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">Tanggal</th>
+                          <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">Jam Input</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">Outlet</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Cash</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">QRIS</th>
@@ -2292,7 +2315,7 @@ function deleteData(rowId) {
                       <tbody className="divide-y divide-gray-100">
                         {filteredTransactions.length === 0 ? (
                           <tr>
-                            <td colSpan={7} className="px-6 py-12 text-center text-sm text-gray-400">
+                            <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-400">
                               <div className="flex flex-col items-center justify-center gap-2">
                                 <Info className="w-8 h-8 text-gray-300" />
                                 <span>Tidak ditemukan riwayat data transaksi harian.</span>
@@ -2307,6 +2330,12 @@ function deleteData(rowId) {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap font-bold text-gray-700">
                                 {parseAndFormatDate(item.tanggal)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap font-semibold text-gray-600 font-mono text-xs">
+                                <div className="flex items-center gap-1">
+                                  <Clock className="w-3.5 h-3.5 text-gray-400" />
+                                  <span>{formatInputTime(item.timestamp)}</span>
+                                </div>
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap">
                                 <span className={`inline-flex items-center px-3 py-1 rounded-full text-xs font-bold ${
