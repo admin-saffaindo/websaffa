@@ -7,7 +7,7 @@ import {
   Lock, ArrowRight, LogOut, Wallet, Banknote, QrCode, Database, 
   PlusCircle, Save, BarChart3, History, Search, Trash2, Info, 
   CheckCircle, AlertCircle, FileCode, Copy, RefreshCw, BookOpen,
-  FileDown
+  FileDown, Store, Calendar, Sparkles, Printer, ChevronDown
 } from 'lucide-react';
 import { exportToPDF } from './utils/pdfExport';
 
@@ -279,6 +279,35 @@ export default function App() {
   const [qris, setQris] = useState<number | ''>('');
   const [searchQuery, setSearchQuery] = useState('');
 
+  // New States for Employee Flow and Dual-View Login
+  const [loggedOutView, setLoggedOutView] = useState<'report' | 'login'>('report');
+  const [submittedTx, setSubmittedTx] = useState<Transaction | null>(null);
+  const [customBaseUrl, setCustomBaseUrl] = useState<string>(() => {
+    if (typeof window !== 'undefined') {
+      let url = window.location.origin + window.location.pathname;
+      if (url.includes('ais-dev-')) {
+        url = url.replace('ais-dev-', 'ais-pre-');
+      }
+      return url;
+    }
+    return '';
+  });
+
+  // Auto-detect and pre-select outlet from URL query (?outlet=Nama%20Outlet)
+  useEffect(() => {
+    if (typeof window !== 'undefined') {
+      const params = new URLSearchParams(window.location.search);
+      const outletParam = params.get('outlet');
+      if (outletParam) {
+        // Find matching outlet case-insensitively
+        const matched = OUTLETS.find(o => o.toLowerCase() === outletParam.trim().toLowerCase());
+        if (matched) {
+          setOutlet(matched);
+        }
+      }
+    }
+  }, []);
+
   // Toast notifications state
   const [toast, setToast] = useState<{ message: string; type: 'success' | 'error'; visible: boolean }>({
     message: '',
@@ -539,6 +568,8 @@ export default function App() {
     .filter(t => t.tanggal === tanggal)
     .map(t => t.outlet);
 
+  const isOutletLocked = outlet ? registeredOutletsForSelectedDate.includes(outlet) : false;
+
   // Form submission handler
   const handleSaveTransaction = (e: React.FormEvent) => {
     e.preventDefault();
@@ -569,6 +600,17 @@ export default function App() {
         .then(res => res.json())
         .then(resData => {
           if (resData.success) {
+            const generatedId = resData.id || generateSimpleId();
+            const newTx: Transaction = {
+              id: generatedId,
+              tanggal,
+              outlet,
+              cash: cashValue,
+              qris: qrisValue,
+              total: totalValue,
+              timestamp: new Date().toLocaleString('id-ID')
+            };
+            setSubmittedTx(newTx);
             triggerToast(resData.message || `Sukses menyimpan data untuk Outlet ${outlet}!`, 'success');
             // Reset inputs on success
             setOutlet('');
@@ -603,6 +645,7 @@ export default function App() {
       };
 
       setTransactions(prev => [newTx, ...prev]);
+      setSubmittedTx(newTx);
       triggerToast(`Sukses menyimpan data untuk Outlet ${outlet} dengan ID ${generatedId}!`, 'success');
       
       // Reset inputs
@@ -941,6 +984,454 @@ function deleteData(rowId) {
   }
 }`;
 
+  // Custom QR Code printing handlers
+  const handlePrintAllQR = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      triggerToast('Gagal membuka jendela cetak! Izinkan popup di browser Anda.', 'error');
+      return;
+    }
+    
+    let qrCardsHtml = '';
+    
+    OUTLETS.forEach(name => {
+      let baseUrl = customBaseUrl || (window.location.origin + window.location.pathname);
+      if (baseUrl.includes('ais-dev-')) {
+        baseUrl = baseUrl.replace('ais-dev-', 'ais-pre-');
+      }
+      const params = new URLSearchParams(window.location.search);
+      const webapp = params.get('webapp') || params.get('url') || webAppUrl;
+      let newParams = new URLSearchParams();
+      newParams.set('outlet', name);
+      if (webapp) {
+        newParams.set('webapp', webapp);
+      }
+      const outletUrl = `${baseUrl}?${newParams.toString()}`;
+      const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=250x250&data=${encodeURIComponent(outletUrl)}`;
+      
+      qrCardsHtml += `
+        <div class="qr-card">
+          <div class="logo-container">
+            <img src="${LOGO_URL}" alt="Saffa Logo" />
+          </div>
+          <div class="outlet-title">OUTLET ${name.toUpperCase()}</div>
+          <div class="sub">SAFFA BUBUR BAYI</div>
+          <div class="qr-wrapper">
+            <img src="${qrImageUrl}" alt="QR Code" />
+          </div>
+          <div class="instruction">SCAN BARCODE UNTUK ISI OMSET</div>
+          <div class="url-text">${outletUrl}</div>
+        </div>
+      `;
+    });
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Cetak Barcode QR Outlet Saffa Bubur Bayi</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=JetBrains+Mono&display=swap');
+            body {
+              font-family: 'Plus Jakarta Sans', sans-serif;
+              background: white;
+              color: #333;
+              margin: 0;
+              padding: 20px;
+            }
+            .header-info {
+              text-align: center;
+              margin-bottom: 30px;
+              border-bottom: 2px dashed #e90076;
+              padding-bottom: 15px;
+            }
+            .header-info h1 {
+              margin: 0;
+              color: #e90076;
+              font-size: 24px;
+              font-weight: 800;
+            }
+            .header-info p {
+              margin: 5px 0 0 0;
+              font-size: 14px;
+              color: #666;
+              font-weight: 500;
+            }
+            .grid {
+              display: grid;
+              grid-template-columns: repeat(2, 1fr);
+              gap: 25px;
+            }
+            .qr-card {
+              border: 3px solid #e90076;
+              border-radius: 24px;
+              padding: 24px;
+              text-align: center;
+              background: #fff;
+              box-shadow: 0 4px 10px rgba(0,0,0,0.05);
+              page-break-inside: avoid;
+            }
+            .logo-container img {
+              height: 50px;
+              object-fit: contain;
+            }
+            .outlet-title {
+              font-size: 18px;
+              font-weight: 800;
+              color: #e90076;
+              margin-top: 10px;
+              letter-spacing: -0.5px;
+            }
+            .sub {
+              font-size: 11px;
+              font-weight: 800;
+              color: #78b928;
+              letter-spacing: 1.5px;
+              margin-bottom: 15px;
+            }
+            .qr-wrapper {
+              margin: 15px auto;
+              width: 180px;
+              height: 180px;
+              border: 1px solid #f0f0f0;
+              padding: 10px;
+              background: white;
+              border-radius: 16px;
+            }
+            .qr-wrapper img {
+              width: 100%;
+              height: 100%;
+            }
+            .instruction {
+              font-size: 11px;
+              font-weight: 700;
+              background: #fef2f7;
+              color: #e90076;
+              padding: 6px 14px;
+              border-radius: 20px;
+              display: inline-block;
+              margin-top: 5px;
+            }
+            .url-text {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 8px;
+              color: #888;
+              margin-top: 10px;
+              word-break: break-all;
+              max-width: 90%;
+              margin-left: auto;
+              margin-right: auto;
+            }
+            @media print {
+              .header-info {
+                display: none;
+              }
+              body {
+                padding: 0;
+              }
+              .grid {
+                gap: 20px;
+              }
+              .qr-card {
+                box-shadow: none;
+                border-color: #333;
+              }
+              .instruction {
+                background: #f5f5f5;
+                color: #333;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="header-info">
+            <h1>Cetak QR Code Laporan Cabang</h1>
+            <p>Saffa Bubur Bayi • Tempel di outlet masing-masing untuk discan oleh karyawan</p>
+          </div>
+          <div class="grid">
+            ${qrCardsHtml}
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handlePrintSingleQR = (name: string) => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      triggerToast('Gagal membuka jendela cetak! Izinkan popup di browser Anda.', 'error');
+      return;
+    }
+    
+    let baseUrl = customBaseUrl || (window.location.origin + window.location.pathname);
+    if (baseUrl.includes('ais-dev-')) {
+      baseUrl = baseUrl.replace('ais-dev-', 'ais-pre-');
+    }
+    const params = new URLSearchParams(window.location.search);
+    const webapp = params.get('webapp') || params.get('url') || webAppUrl;
+    let newParams = new URLSearchParams();
+    newParams.set('outlet', name);
+    if (webapp) {
+      newParams.set('webapp', webapp);
+    }
+    const outletUrl = `${baseUrl}?${newParams.toString()}`;
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(outletUrl)}`;
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Cetak QR Code ${name} - Saffa Bubur Bayi</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=JetBrains+Mono&display=swap');
+            body {
+              font-family: 'Plus Jakarta Sans', sans-serif;
+              background: white;
+              color: #333;
+              margin: 0;
+              padding: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+            }
+            .qr-card {
+              border: 4px solid #e90076;
+              border-radius: 32px;
+              padding: 40px;
+              text-align: center;
+              background: #fff;
+              max-width: 400px;
+              width: 100%;
+              box-sizing: border-box;
+              box-shadow: 0 10px 25px rgba(0,0,0,0.05);
+            }
+            .logo-container img {
+              height: 70px;
+              object-fit: contain;
+            }
+            .outlet-title {
+              font-size: 24px;
+              font-weight: 800;
+              color: #e90076;
+              margin-top: 15px;
+              letter-spacing: -0.5px;
+            }
+            .sub {
+              font-size: 13px;
+              font-weight: 800;
+              color: #78b928;
+              letter-spacing: 2px;
+              margin-bottom: 25px;
+            }
+            .qr-wrapper {
+              margin: 25px auto;
+              width: 240px;
+              height: 240px;
+              border: 1px solid #f0f0f0;
+              padding: 15px;
+              background: white;
+              border-radius: 20px;
+            }
+            .qr-wrapper img {
+              width: 100%;
+              height: 100%;
+            }
+            .instruction {
+              font-size: 13px;
+              font-weight: 700;
+              background: #fef2f7;
+              color: #e90076;
+              padding: 8px 18px;
+              border-radius: 20px;
+              display: inline-block;
+              margin-top: 10px;
+            }
+            .url-text {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 9px;
+              color: #999;
+              margin-top: 15px;
+              word-break: break-all;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+              .qr-card {
+                border-color: #333;
+                box-shadow: none;
+              }
+              .instruction {
+                background: #f5f5f5;
+                color: #333;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="qr-card">
+            <div class="logo-container">
+              <img src="${LOGO_URL}" alt="Saffa Logo" />
+            </div>
+            <div class="outlet-title font-bold">OUTLET ${name.toUpperCase()}</div>
+            <div class="sub">SAFFA BUBUR BAYI</div>
+            <div class="qr-wrapper">
+              <img src="${qrImageUrl}" alt="QR Code" />
+            </div>
+            <div class="instruction">SCAN BARCODE UNTUK ISI OMSET</div>
+            <div class="url-text">${outletUrl}</div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
+  const handlePrintHomeQR = () => {
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) {
+      triggerToast('Gagal membuka jendela cetak! Izinkan popup di browser Anda.', 'error');
+      return;
+    }
+    
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent('https://websaffa.vercel.app/')}`;
+    
+    printWindow.document.write(`
+      <html>
+        <head>
+          <title>Cetak Barcode Utama - Saffa Bubur Bayi</title>
+          <style>
+            @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@500;700;800&family=JetBrains+Mono&display=swap');
+            body {
+              font-family: 'Plus Jakarta Sans', sans-serif;
+              background: white;
+              color: #333;
+              margin: 0;
+              padding: 0;
+              display: flex;
+              align-items: center;
+              justify-content: center;
+              min-height: 100vh;
+            }
+            .qr-card {
+              border: 5px solid #e90076;
+              border-radius: 40px;
+              padding: 50px;
+              text-align: center;
+              background: #fff;
+              max-width: 500px;
+              width: 100%;
+              box-sizing: border-box;
+              box-shadow: 0 15px 35px rgba(0,0,0,0.05);
+            }
+            .logo-container img {
+              height: 90px;
+              object-fit: contain;
+            }
+            .title {
+              font-size: 28px;
+              font-weight: 800;
+              color: #e90076;
+              margin-top: 20px;
+              letter-spacing: -1px;
+            }
+            .sub {
+              font-size: 15px;
+              font-weight: 800;
+              color: #78b928;
+              letter-spacing: 3px;
+              margin-bottom: 30px;
+            }
+            .qr-wrapper {
+              margin: 30px auto;
+              width: 280px;
+              height: 280px;
+              border: 1px solid #f0f0f0;
+              padding: 20px;
+              background: white;
+              border-radius: 24px;
+              box-shadow: inset 0 2px 8px rgba(0,0,0,0.02);
+            }
+            .qr-wrapper img {
+              width: 100%;
+              height: 100%;
+            }
+            .instruction {
+              font-size: 14px;
+              font-weight: 800;
+              background: #fef2f7;
+              color: #e90076;
+              padding: 10px 24px;
+              border-radius: 30px;
+              display: inline-block;
+              margin-top: 15px;
+            }
+            .url-text {
+              font-family: 'JetBrains Mono', monospace;
+              font-size: 11px;
+              color: #666;
+              margin-top: 20px;
+              word-break: break-all;
+              font-weight: bold;
+            }
+            @media print {
+              body {
+                padding: 0;
+              }
+              .qr-card {
+                border-color: #333;
+                box-shadow: none;
+              }
+              .instruction {
+                background: #f5f5f5;
+                color: #333;
+                border: 1px solid #ddd;
+              }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="qr-card">
+            <div class="logo-container">
+              <img src="${LOGO_URL}" alt="Saffa Logo" />
+            </div>
+            <div class="title">BARCODE UTAMA LAPORAN</div>
+            <div class="sub">SAFFA BUBUR BAYI</div>
+            <div class="qr-wrapper">
+              <img src="${qrImageUrl}" alt="QR Code" />
+            </div>
+            <div class="instruction">SCAN BARCODE UNTUK ISI OMSET</div>
+            <div class="url-text">https://websaffa.vercel.app/</div>
+          </div>
+          <script>
+            window.onload = function() {
+              setTimeout(function() {
+                window.print();
+              }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Handle copy to clipboard
   const handleCopyCode = (text: string, fileName: string) => {
     navigator.clipboard.writeText(text);
@@ -962,60 +1453,372 @@ function deleteData(rowId) {
         {/* ==================================================== */}
         {!isLoggedIn ? (
           <div className="flex-1 flex items-center justify-center p-4">
-            <div id="login-card" className="w-full max-w-md bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-8 md:p-10 transition-all duration-300 shadow-2xl">
+            <div id="login-card" className={`w-full ${loggedOutView === 'report' ? 'max-w-xl' : 'max-w-md'} bg-white/40 backdrop-blur-2xl border border-white/60 rounded-[2.5rem] p-6 md:p-10 transition-all duration-300 shadow-2xl`}>
               
               {/* Brand Logo & Heading */}
-              <div className="text-center mb-8">
+              <div className="text-center mb-6">
                 <img 
                   src={LOGO_URL} 
                   alt="Saffa Bubur Bayi Logo" 
-                  className="h-24 mx-auto mb-4 object-contain filter drop-shadow-md"
+                  className="h-20 mx-auto mb-3 object-contain filter drop-shadow-md"
                   referrerPolicy="no-referrer"
                 />
-                <h2 className="text-2xl font-bold text-gray-800 tracking-tight">Dashboard Keuangan</h2>
-                <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1 bg-pink-100 text-saffa-pink rounded-full text-xs font-semibold tracking-wide uppercase">
+                <h2 className="text-xl md:text-2xl font-black text-gray-800 tracking-tight">
+                  {loggedOutView === 'report' ? 'Laporan Keuangan Outlet' : 'Akses Portal Admin'}
+                </h2>
+                <div className="inline-flex items-center gap-1.5 mt-1.5 px-3 py-1 bg-pink-100 text-saffa-pink rounded-full text-[10px] md:text-xs font-bold tracking-wide uppercase">
                   Saffa Bubur Bayi
                 </div>
               </div>
 
-              {/* Login Form */}
-              <form onSubmit={handleLoginSubmit} className="space-y-6">
+              {/* Segmented Tab Selector for Logged Out Views */}
+              <div className="grid grid-cols-2 bg-gray-100/60 backdrop-blur-md p-1 rounded-2xl border border-gray-200/50 mb-6">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setLoggedOutView('report');
+                    setAuthError(false);
+                  }}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    loggedOutView === 'report'
+                      ? 'bg-saffa-pink text-white shadow-md'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  <PlusCircle className="w-3.5 h-3.5" />
+                  Isi Laporan
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setLoggedOutView('login')}
+                  className={`py-2.5 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
+                    loggedOutView === 'login'
+                      ? 'bg-[#e90076] text-white shadow-md'
+                      : 'text-gray-500 hover:text-gray-800'
+                  }`}
+                >
+                  <Lock className="w-3.5 h-3.5" />
+                  Portal Admin
+                </button>
+              </div>
+
+              {/* VIEW A: EMPLOYEE REPORTING */}
+              {loggedOutView === 'report' && (
                 <div>
-                  <label htmlFor="password-input" className="block text-sm font-medium text-gray-600 mb-2">
-                    Kata Sandi Akses
-                  </label>
-                  <div className="relative rounded-2xl shadow-sm">
-                    <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
-                      <Lock className="w-5 h-5" />
+                  {submittedTx ? (
+                    <div className="text-center py-4 space-y-5 animate-fade-in">
+                      <div className="w-16 h-16 rounded-full bg-emerald-100 flex items-center justify-center mx-auto text-emerald-600 animate-pulse">
+                        <CheckCircle className="w-10 h-10" />
+                      </div>
+                      <div>
+                        <h3 className="text-lg font-black text-gray-800">Laporan Berhasil Dikirim! 🎉</h3>
+                        <p className="text-xs text-gray-500 mt-1 leading-relaxed">
+                          Terima kasih atas laporan Anda. Data omset harian telah terekam aman di {isLiveMode ? 'Google Sheets' : 'Sistem Lokal'}.
+                        </p>
+                      </div>
+                      
+                      <div className="bg-white/70 border border-white/80 rounded-[2rem] p-5 text-left space-y-3.5 shadow-sm">
+                        <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50">
+                          <span className="text-xs text-gray-500 font-semibold">ID Transaksi</span>
+                          <span className="text-xs font-mono font-bold bg-pink-100 text-saffa-pink px-2.5 py-1 rounded-lg">{submittedTx.id}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50">
+                          <span className="text-xs text-gray-500 font-semibold">Outlet Cabang</span>
+                          <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                            <Store className="w-3.5 h-3.5 text-saffa-pink flex-shrink-0" />
+                            {submittedTx.outlet}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50">
+                          <span className="text-xs text-gray-500 font-semibold">Tanggal</span>
+                          <span className="text-xs font-bold text-gray-800 flex items-center gap-1">
+                            <Calendar className="w-3.5 h-3.5 text-saffa-green flex-shrink-0" />
+                            {parseAndFormatDate(submittedTx.tanggal)}
+                          </span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50">
+                          <span className="text-xs text-gray-500 font-semibold">Uang Cash (Tunai)</span>
+                          <span className="text-xs font-bold text-gray-800">{formatRupiah(submittedTx.cash)}</span>
+                        </div>
+                        <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50">
+                          <span className="text-xs text-gray-500 font-semibold">Uang QRIS (Non-Tunai)</span>
+                          <span className="text-xs font-bold text-gray-800">{formatRupiah(submittedTx.qris)}</span>
+                        </div>
+                        <div className="flex justify-between items-center pt-1.5">
+                          <span className="text-xs font-bold text-gray-500">Total Omset</span>
+                          <span className="text-sm font-black text-saffa-green bg-green-50 px-2.5 py-1 rounded-lg">{formatRupiah(submittedTx.total)}</span>
+                        </div>
+                      </div>
+
+                      <button
+                        onClick={() => setSubmittedTx(null)}
+                        className="w-full py-4 bg-gradient-to-r from-saffa-green to-emerald-600 hover:from-saffa-green-hover hover:to-emerald-700 text-white font-semibold rounded-2xl shadow-lg shadow-emerald-500/20 transition-all flex items-center justify-center gap-2 cursor-pointer text-xs"
+                      >
+                        <PlusCircle className="w-4 h-4" />
+                        Input Laporan Baru
+                      </button>
                     </div>
-                    <input 
-                      type="password" 
-                      id="password-input"
-                      required 
-                      value={passwordInput}
-                      onChange={(e) => setPasswordInput(e.target.value)}
-                      placeholder="Masukkan kata sandi..." 
-                      className="block w-full pl-11 pr-4 py-3.5 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all placeholder:text-gray-400 text-sm"
-                    />
-                  </div>
-                  {authError && (
-                    <p className="mt-2 text-xs text-saffa-pink font-semibold flex items-center gap-1">
-                      <AlertCircle className="w-3.5 h-3.5" />
-                      Sandi salah! Silakan coba lagi.
-                    </p>
+                  ) : (
+                    <form onSubmit={handleSaveTransaction} className="space-y-4">
+                      {/* Outlet pre-selection indicator */}
+                      {outlet && !isOutletLocked && (
+                        <div className="p-3.5 bg-emerald-50 border border-emerald-100 rounded-2xl flex items-start gap-2.5 text-xs text-emerald-800 leading-relaxed font-semibold animate-fade-in">
+                          <Store className="w-4 h-4 text-saffa-green flex-shrink-0 mt-0.5" />
+                          <div>
+                            <span>Anda sedang mengisi omset untuk <strong className="text-saffa-green">{outlet}</strong>.</span>
+                            <span className="block text-[10px] text-emerald-600 font-medium mt-0.5">Prefilled & Terkunci dari Scan Barcode.</span>
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Tanggal input */}
+                      <div>
+                        <label htmlFor="tanggal-input" className="block text-[10px] uppercase font-black text-gray-500 tracking-wider mb-1.5">
+                          Tanggal Penjualan
+                        </label>
+                        <div className="relative rounded-2xl shadow-sm">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                            <Calendar className="w-4 h-4" />
+                          </div>
+                          <input
+                            type="date"
+                            id="tanggal-input"
+                            required
+                            value={tanggal}
+                            onChange={(e) => setTanggal(e.target.value)}
+                            className="block w-full pl-11 pr-4 py-3 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-xs font-semibold"
+                          />
+                        </div>
+                      </div>
+
+                      {/* Outlet select */}
+                      <div>
+                        <label htmlFor="outlet-select" className="block text-[10px] uppercase font-black text-gray-500 tracking-wider mb-1.5">
+                          Cabang Outlet
+                        </label>
+                        <div className="relative rounded-2xl shadow-sm">
+                          <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                            <Store className="w-4 h-4" />
+                          </div>
+                          <select
+                            id="outlet-select"
+                            required
+                            value={outlet}
+                            onChange={(e) => setOutlet(e.target.value)}
+                            className="block w-full pl-11 pr-4 py-3 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-xs font-semibold"
+                          >
+                            <option value="">-- Pilih Cabang Outlet --</option>
+                            {OUTLETS_DATA.map((region) => (
+                              <optgroup key={region.region} label={region.region} className="font-bold text-gray-700 bg-gray-50 text-xs">
+                                {region.items.map((item) => {
+                                  const isLockedItem = registeredOutletsForSelectedDate.includes(item);
+                                  return (
+                                    <option 
+                                      key={item} 
+                                      value={item}
+                                      disabled={isLockedItem}
+                                      className={isLockedItem ? "text-gray-300 bg-gray-50 font-normal" : "text-gray-800 font-semibold bg-white"}
+                                    >
+                                      {item} {isLockedItem ? '🔒 (Sudah Diisi - Terkunci)' : ''}
+                                    </option>
+                                  );
+                                })}
+                              </optgroup>
+                            ))}
+                          </select>
+                        </div>
+                      </div>
+
+                      {!isOutletLocked ? (
+                        <>
+                          {/* Cash Input */}
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label htmlFor="cash-input" className="block text-[10px] uppercase font-black text-gray-500 tracking-wider">
+                                Omset Tunai (Cash)
+                              </label>
+                              {cash !== '' && (
+                                <span className="text-xs font-black text-saffa-pink">
+                                  {formatRupiah(Number(cash))}
+                                </span>
+                              )}
+                            </div>
+                            <div className="relative rounded-2xl shadow-sm">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 font-bold text-xs">
+                                Rp
+                              </div>
+                              <input
+                                type="number"
+                                id="cash-input"
+                                required
+                                min="0"
+                                placeholder="Masukkan nominal cash..."
+                                value={cash}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setCash(val === '' ? '' : Number(val));
+                                }}
+                                className="block w-full pl-11 pr-4 py-3 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-xs font-semibold"
+                              />
+                            </div>
+                          </div>
+
+                          {/* QRIS Input */}
+                          <div>
+                            <div className="flex justify-between items-center mb-1.5">
+                              <label htmlFor="qris-input" className="block text-[10px] uppercase font-black text-gray-500 tracking-wider">
+                                Omset QRIS (Non-Tunai)
+                              </label>
+                              {qris !== '' && (
+                                <span className="text-xs font-black text-blue-600">
+                                  {formatRupiah(Number(qris))}
+                                </span>
+                              )}
+                            </div>
+                            <div className="relative rounded-2xl shadow-sm">
+                              <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400 font-bold text-xs">
+                                Rp
+                              </div>
+                              <input
+                                type="number"
+                                id="qris-input"
+                                required
+                                min="0"
+                                placeholder="Masukkan nominal qris..."
+                                value={qris}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setQris(val === '' ? '' : Number(val));
+                                }}
+                                className="block w-full pl-11 pr-4 py-3 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-xs font-semibold"
+                              />
+                            </div>
+                          </div>
+
+                          {/* Live calculation panel */}
+                          <div className="p-4 bg-gradient-to-r from-pink-500/10 to-green-500/10 border border-white/60 rounded-2xl flex justify-between items-center">
+                            <div>
+                              <span className="text-[10px] uppercase font-bold text-gray-500 tracking-wider">Estimasi Total Hari Ini</span>
+                              <span className="block text-[10px] text-gray-400 mt-0.5">Sum: Cash + QRIS</span>
+                            </div>
+                            <div className="text-right">
+                              <span className="text-base font-black text-saffa-green">
+                                {formatRupiah((Number(cash) || 0) + (Number(qris) || 0))}
+                              </span>
+                            </div>
+                          </div>
+
+                          {/* Submit */}
+                          <button
+                            type="submit"
+                            disabled={isLoadingLive}
+                            className="w-full py-4 bg-gradient-to-r from-saffa-pink to-pink-600 hover:from-saffa-pink-hover hover:to-pink-700 text-white font-bold rounded-2xl shadow-lg shadow-pink-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs cursor-pointer disabled:opacity-50"
+                          >
+                            {isLoadingLive ? (
+                              <>
+                                <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                <span>Menyimpan ke Google Sheets...</span>
+                              </>
+                            ) : (
+                              <>
+                                <PlusCircle className="w-4.5 h-4.5" />
+                                Kirim Laporan Omset
+                              </>
+                            )}
+                          </button>
+                        </>
+                      ) : (
+                        /* Locked Message Card replacing form inputs when locked */
+                        <div className="p-5 bg-red-50 border border-red-200 rounded-[2rem] flex flex-col items-center text-center gap-4 text-red-800 shadow-sm animate-fade-in my-2">
+                          <div className="w-12 h-12 rounded-full bg-red-100 flex items-center justify-center text-red-600 animate-pulse">
+                            <Lock className="w-6 h-6" />
+                          </div>
+                          <div className="space-y-1.5">
+                            <h4 className="text-sm font-black text-red-600 uppercase tracking-tight">🔒 Akses Pengisian Terkunci</h4>
+                            <p className="text-xs text-red-700/90 leading-relaxed font-semibold">
+                              Laporan omset harian untuk outlet <span className="text-red-700 underline decoration-red-400 decoration-2 font-bold">{outlet}</span> pada tanggal <span className="font-bold">{parseAndFormatDate(tanggal)}</span> sudah dikirim dan tidak dapat diisi ulang.
+                            </p>
+                            <p className="text-[10px] text-red-500 leading-relaxed font-medium">
+                              Sistem mengunci pengisian ganda untuk mencegah kekeliruan data atau duplikasi dari karyawan lain. Apabila ingin merevisi laporan ini, silakan hubungi owner / admin.
+                            </p>
+                          </div>
+                          
+                          <div className="w-full pt-3 border-t border-red-200/50 flex flex-col gap-2">
+                            <div className="text-[10px] text-gray-400 font-semibold uppercase tracking-wider">Pilihan Alternatif:</div>
+                            <div className="flex gap-2">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setOutlet('');
+                                  triggerToast('Silakan pilih cabang outlet lain.', 'success');
+                                }}
+                                className="flex-1 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold rounded-xl text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                              >
+                                <Store className="w-3.5 h-3.5" />
+                                Ganti Outlet
+                              </button>
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  const yesterday = new Date();
+                                  yesterday.setDate(yesterday.getDate() - 1);
+                                  setTanggal(yesterday.toISOString().split('T')[0]);
+                                  triggerToast('Tanggal diubah ke kemarin.', 'success');
+                                }}
+                                className="flex-1 py-2 bg-white hover:bg-gray-50 border border-gray-200 text-gray-700 font-bold rounded-xl text-[10px] transition-all cursor-pointer flex items-center justify-center gap-1"
+                              >
+                                <Calendar className="w-3.5 h-3.5" />
+                                Ganti Tanggal
+                              </button>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+                    </form>
                   )}
                 </div>
+              )}
 
-                <button 
-                  type="submit" 
-                  className="w-full py-4 bg-gradient-to-r from-saffa-pink to-pink-600 hover:from-saffa-pink-hover hover:to-pink-700 text-white font-semibold rounded-2xl shadow-lg shadow-pink-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
-                >
-                  Masuk ke Dashboard
-                  <ArrowRight className="w-4 h-4" />
-                </button>
-              </form>
+              {/* VIEW B: ADMIN PASSWORD LOGIN */}
+              {loggedOutView === 'login' && (
+                <form onSubmit={handleLoginSubmit} className="space-y-6">
+                  <div>
+                    <label htmlFor="password-input" className="block text-sm font-medium text-gray-600 mb-2">
+                      Kata Sandi Akses Admin
+                    </label>
+                    <div className="relative rounded-2xl shadow-sm">
+                      <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none text-gray-400">
+                        <Lock className="w-5 h-5" />
+                      </div>
+                      <input 
+                        type="password" 
+                        id="password-input"
+                        required 
+                        value={passwordInput}
+                        onChange={(e) => setPasswordInput(e.target.value)}
+                        placeholder="Masukkan sandi admin..." 
+                        className="block w-full pl-11 pr-4 py-3.5 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all placeholder:text-gray-400 text-sm font-medium"
+                      />
+                    </div>
+                    {authError && (
+                      <p className="mt-2 text-xs text-saffa-pink font-semibold flex items-center gap-1 animate-pulse">
+                        <AlertCircle className="w-3.5 h-3.5" />
+                        Sandi salah! Silakan coba lagi.
+                      </p>
+                    )}
+                  </div>
 
-              <div className="mt-8 text-center text-xs text-gray-400">
+                  <button 
+                    type="submit" 
+                    className="w-full py-4 bg-gradient-to-r from-saffa-pink to-pink-600 hover:from-saffa-pink-hover hover:to-pink-700 text-white font-semibold rounded-2xl shadow-lg shadow-pink-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-sm cursor-pointer"
+                  >
+                    Masuk ke Dashboard
+                    <ArrowRight className="w-4 h-4" />
+                  </button>
+                </form>
+              )}
+
+              <div className="mt-6 pt-5 border-t border-gray-200/50 text-center text-xs text-gray-400 font-medium">
                 &copy; 2026 Saffa Bubur Bayi • Hak Cipta Dilindungi.
               </div>
 
@@ -1049,19 +1852,30 @@ function deleteData(rowId) {
                 {/* Navigation and Actions */}
                 <div className="flex items-center gap-3 flex-wrap">
                   {/* Mode Selector */}
-                  {!isAdmin && (
-                    <div className="bg-white/40 backdrop-blur-md p-1 rounded-2xl flex border border-white/60 shadow-sm">
-                      <button
-                        onClick={() => setActiveTab('app')}
-                        className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
-                          activeTab === 'app' 
-                            ? 'bg-[#e90076] text-white shadow-md' 
-                            : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
-                        }`}
-                      >
-                        <BarChart3 className="w-3.5 h-3.5" />
-                        Aplikasi Demo
-                      </button>
+                  <div className="bg-white/40 backdrop-blur-md p-1 rounded-2xl flex border border-white/60 shadow-sm">
+                    <button
+                      onClick={() => setActiveTab('app')}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeTab === 'app' 
+                          ? 'bg-[#e90076] text-white shadow-md' 
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
+                      }`}
+                    >
+                      <BarChart3 className="w-3.5 h-3.5" />
+                      Dashboard
+                    </button>
+                    <button
+                      onClick={() => setActiveTab('qr')}
+                      className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
+                        activeTab === 'qr' 
+                          ? 'bg-[#e90076] text-white shadow-md' 
+                          : 'text-gray-600 hover:text-gray-900 hover:bg-white/20'
+                      }`}
+                    >
+                      <QrCode className="w-3.5 h-3.5" />
+                      Barcode QR Cabang
+                    </button>
+                    {!isAdmin && (
                       <button
                         onClick={() => setActiveTab('gas')}
                         className={`px-4 py-2 rounded-xl text-xs font-semibold transition-all flex items-center gap-1.5 cursor-pointer ${
@@ -1073,8 +1887,8 @@ function deleteData(rowId) {
                         <FileCode className="w-3.5 h-3.5" />
                         Dapatkan Kode GAS
                       </button>
-                    </div>
-                  )}
+                    )}
+                  </div>
 
                   {/* Logout Button */}
                   <button 
@@ -1677,7 +2491,217 @@ function deleteData(rowId) {
                 </div>
 
               </main>
-            )}             {/* TAB CONTENT 2: GOOGLE APPS SCRIPT CODE & SETUP EXPLAINER */}
+            )}
+
+            {/* TAB CONTENT 2: BARCODE & QR GENERATOR */}
+            {activeTab === 'qr' && (
+              <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
+                
+                {/* PRIMARY SINGLE BARCODE SECTION (HERO) */}
+                <div className="bg-gradient-to-br from-white/80 to-white/40 backdrop-blur-xl border-2 border-saffa-pink/30 shadow-xl rounded-[2.5rem] p-6 md:p-10 text-center max-w-3xl mx-auto space-y-6">
+                  <div className="flex flex-col items-center justify-center space-y-2">
+                    <div className="w-16 h-16 rounded-3xl bg-pink-100 flex items-center justify-center text-saffa-pink shadow-md">
+                      <QrCode className="w-8 h-8" />
+                    </div>
+                    <span className="text-[11px] font-black tracking-widest text-saffa-pink uppercase mt-2">BARCODE UTAMA LAPORAN</span>
+                    <h2 className="text-2xl md:text-3xl font-black text-gray-800 tracking-tight">
+                      Saffa Bubur Bayi
+                    </h2>
+                    <p className="text-xs text-gray-500 max-w-lg mx-auto font-semibold leading-relaxed">
+                      Cetak barcode di bawah ini untuk ditempel di rumah Anda. Karyawan cukup men-scan barcode ini untuk langsung membuka formulir pelaporan omset harian.
+                    </p>
+                  </div>
+
+                  {/* LARGE QR CODE CAROUSEL CARD */}
+                  <div className="bg-white border-2 border-pink-100 rounded-[2rem] p-6 md:p-8 max-w-sm mx-auto shadow-md space-y-4">
+                    <div className="flex justify-center">
+                      <img src={LOGO_URL} alt="Saffa Logo" className="h-10 object-contain" />
+                    </div>
+                    
+                    <div className="text-sm font-extrabold text-saffa-pink uppercase tracking-wider">
+                      FORMULIR LAPORAN OMSET
+                    </div>
+                    
+                    <div className="mx-auto w-56 h-56 bg-pink-50/50 border border-pink-100 rounded-2xl p-4 flex items-center justify-center shadow-inner">
+                      <img 
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('https://websaffa.vercel.app/')}`}
+                        alt="Barcode Utama Saffa"
+                        className="w-full h-full object-contain"
+                        referrerPolicy="no-referrer"
+                      />
+                    </div>
+                    
+                    <div className="text-[11px] font-bold text-gray-600 bg-gray-50 py-1.5 px-3 rounded-full inline-block">
+                      Tujuan: <span className="font-mono text-saffa-pink font-semibold">https://websaffa.vercel.app/</span>
+                    </div>
+                  </div>
+
+                  {/* ACTIONS GROUP */}
+                  <div className="flex flex-col sm:flex-row items-center justify-center gap-4 max-w-md mx-auto pt-2">
+                    <button
+                      onClick={handlePrintHomeQR}
+                      className="w-full sm:w-auto px-8 py-3.5 bg-gradient-to-r from-saffa-pink to-pink-600 hover:from-saffa-pink-hover hover:to-pink-700 text-white font-bold rounded-2xl shadow-lg shadow-pink-500/20 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+                    >
+                      <Printer className="w-4 h-4" />
+                      Cetak Barcode Utama (Print & Tempel)
+                    </button>
+                    
+                    <button
+                      onClick={() => {
+                        navigator.clipboard.writeText('https://websaffa.vercel.app/');
+                        triggerToast('Link website disalin ke clipboard!', 'success');
+                      }}
+                      className="w-full sm:w-auto px-6 py-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"
+                    >
+                      <Copy className="w-4 h-4 text-gray-400" />
+                      Salin Link Website
+                    </button>
+                  </div>
+                </div>
+
+                {/* EXPANDABLE BRANCH BARCODES SECTION */}
+                <div className="bg-white/40 backdrop-blur-xl border border-white/60 shadow-md rounded-[2.5rem] p-6 max-w-4xl mx-auto">
+                  <details className="group">
+                    <summary className="list-none flex items-center justify-between cursor-pointer font-bold text-gray-700 select-none">
+                      <div className="flex items-center gap-3">
+                        <Store className="w-5 h-5 text-gray-500" />
+                        <div className="text-left">
+                          <h3 className="text-sm font-black text-gray-800">Atau Gunakan Barcode Khusus Per Cabang (Opsional)</h3>
+                          <p className="text-[11px] text-gray-400 font-semibold mt-0.5">Membuka form dengan isian cabang yang otomatis terkunci</p>
+                        </div>
+                      </div>
+                      <span className="transition group-open:rotate-180 text-gray-500">
+                        <ChevronDown className="w-5 h-5" />
+                      </span>
+                    </summary>
+                    
+                    <div className="mt-6 pt-6 border-t border-gray-200/60 space-y-6">
+                      <div className="p-4 bg-blue-50/80 border border-blue-100 rounded-2xl flex items-start gap-3 text-xs text-blue-800 font-medium">
+                        <Info className="w-4 h-4 text-blue-600 flex-shrink-0 mt-0.5" />
+                        <div>
+                          <span className="font-bold">Informasi Tambahan:</span>
+                          <p className="mt-1 leading-relaxed text-[11px] text-blue-700 font-semibold">
+                            Barcode khusus cabang di bawah ini akan otomatis memilih nama outlet saat di-scan oleh karyawan, sehingga karyawan tidak perlu memilih nama cabang secara manual lagi. Gunakan ini jika Anda ingin mencetak barcode khusus untuk masing-masing lokasi jualan.
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* CONFIG LINK BARCODE */}
+                      <div className="bg-white/50 border border-gray-100 rounded-2xl p-4 space-y-3">
+                        <h4 className="text-xs font-black text-gray-700 uppercase tracking-wider">Konfigurasi Target Aplikasi Cabang</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
+                          <div className="md:col-span-3 space-y-1.5">
+                            <label className="block text-[10px] uppercase font-black text-gray-400 tracking-wider">
+                              URL Target Cabang
+                            </label>
+                            <input
+                              type="text"
+                              value={customBaseUrl}
+                              onChange={(e) => setCustomBaseUrl(e.target.value)}
+                              placeholder="https://example.com"
+                              className="block w-full px-4 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent text-xs font-semibold"
+                            />
+                          </div>
+                          <button
+                            onClick={() => {
+                              let url = window.location.origin + window.location.pathname;
+                              if (url.includes('ais-dev-')) {
+                                url = url.replace('ais-dev-', 'ais-pre-');
+                              }
+                              setCustomBaseUrl(url);
+                              triggerToast('URL di-reset ke default publik!', 'success');
+                            }}
+                            className="py-2 bg-gray-100 hover:bg-gray-200 text-gray-700 font-bold rounded-xl transition-all text-xs flex items-center justify-center gap-1.5 cursor-pointer"
+                          >
+                            <RefreshCw className="w-3.5 h-3.5" />
+                            Reset URL
+                          </button>
+                        </div>
+                      </div>
+
+                      {/* BRANCH CARDS GRID */}
+                      <div className="space-y-6 pt-2">
+                        {OUTLETS_DATA.map((region) => (
+                          <div key={region.region} className="space-y-3">
+                            <h4 className="text-[11px] font-black text-gray-400 uppercase tracking-widest pl-2 flex items-center gap-2">
+                              <span className="w-2 h-2 rounded-full bg-saffa-pink"></span>
+                              {region.region}
+                            </h4>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-4">
+                              {region.items.map((name) => {
+                                let baseUrl = customBaseUrl || (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : '');
+                                if (baseUrl.includes('ais-dev-')) {
+                                  baseUrl = baseUrl.replace('ais-dev-', 'ais-pre-');
+                                }
+                                const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+                                const webapp = params.get('webapp') || params.get('url') || webAppUrl;
+                                
+                                let newParams = new URLSearchParams();
+                                newParams.set('outlet', name);
+                                if (webapp) {
+                                  newParams.set('webapp', webapp);
+                                }
+                                const outletUrl = `${baseUrl}?${newParams.toString()}`;
+                                const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=${encodeURIComponent(outletUrl)}`;
+                                
+                                return (
+                                  <div key={name} className="bg-white/60 border border-gray-100 shadow-sm rounded-2xl p-4 flex flex-col justify-between hover:shadow-md transition-all">
+                                    <div className="space-y-3">
+                                      <div className="flex items-center justify-between">
+                                        <span className="text-[9px] font-bold text-saffa-green uppercase tracking-wider">QR Cabang</span>
+                                        <span className="text-[9px] font-mono font-bold bg-pink-100 text-saffa-pink px-1.5 py-0.5 rounded">Pre-filled</span>
+                                      </div>
+                                      
+                                      <div>
+                                        <h5 className="text-xs font-black text-gray-800 truncate">{name}</h5>
+                                        <p className="text-[9px] text-gray-400 font-medium">Saffa Bubur Bayi</p>
+                                      </div>
+                                      
+                                      <div className="mx-auto w-32 h-32 bg-white border border-gray-100 rounded-xl p-2 flex items-center justify-center">
+                                        <img 
+                                          src={qrImageUrl} 
+                                          alt={`QR Code ${name}`} 
+                                          className="w-full h-full object-contain"
+                                          referrerPolicy="no-referrer"
+                                        />
+                                      </div>
+                                    </div>
+                                    
+                                    <div className="mt-4 pt-3 border-t border-gray-100 space-y-1.5">
+                                      <button
+                                        onClick={() => handlePrintSingleQR(name)}
+                                        className="w-full py-1.5 bg-pink-50 hover:bg-pink-100 text-saffa-pink font-bold rounded-lg transition-all text-[11px] flex items-center justify-center gap-1 cursor-pointer"
+                                      >
+                                        <Printer className="w-3 h-3" />
+                                        Cetak Barcode
+                                      </button>
+                                      <button
+                                        onClick={() => {
+                                          navigator.clipboard.writeText(outletUrl);
+                                          triggerToast(`Link untuk Outlet ${name} disalin ke clipboard!`, 'success');
+                                        }}
+                                        className="w-full py-1 text-[9px] font-semibold text-gray-400 hover:text-gray-700 transition-all flex items-center justify-center gap-1 cursor-pointer truncate"
+                                      >
+                                        <Copy className="w-2.5 h-2.5 flex-shrink-0" />
+                                        Salin Link Cabang
+                                      </button>
+                                    </div>
+                                  </div>
+                                );
+                              })}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  </details>
+                </div>
+
+              </main>
+            )}
+
+            {/* TAB CONTENT 3: GOOGLE APPS SCRIPT CODE & SETUP EXPLAINER */}
             {activeTab === 'gas' && (
               <main className="flex-1 w-full max-w-7xl mx-auto px-4 py-6 md:px-8 md:py-8 space-y-6">
                 
