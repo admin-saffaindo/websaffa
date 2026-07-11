@@ -33,7 +33,7 @@ const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-10321
 
 // Default Google Apps Script URL.
 // Anda dapat memasukkan URL Web App hasil deploy Apps Script Anda di sini agar terkunci otomatis untuk semua pengguna.
-const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyg-CmxXNTOHVimDqcs9KHUX_3Pyu5phnVWnoVO6fz6YNMl-YbfRV2j_MLO5qlFtZLDpA/exec';
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw27B5bIu4riNnn3cghiIXGuat6KbcaZAqjsWs_gxaxowHcuU77z84DIblIz8IS8dPHfw/exec';
 
 // Interfaces
 interface Transaction {
