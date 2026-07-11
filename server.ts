@@ -8,6 +8,15 @@ async function startServer() {
 
   // API sheets proxy to bypass CORS/sandbox restrictions in iframe
   app.get("/api/sheets-proxy", async (req, res) => {
+    // Enable CORS for external callers like Vercel
+    res.setHeader("Access-Control-Allow-Origin", "*");
+    res.setHeader("Access-Control-Allow-Methods", "GET, OPTIONS");
+    res.setHeader("Access-Control-Allow-Headers", "Content-Type, Accept");
+
+    if (req.method === 'OPTIONS') {
+      return res.sendStatus(200);
+    }
+
     try {
       const { url, ...params } = req.query;
       if (!url || typeof url !== 'string') {

@@ -35,6 +35,20 @@ const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-10321
 // Anda dapat memasukkan URL Web App hasil deploy Apps Script Anda di sini agar terkunci otomatis untuk semua pengguna.
 const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyC3cuBPLeWYjaHNujMriPSus_06YN1E42xFFJEiDbp5W2M5RlTyAjFEo4hAgZUTfWUnA/exec';
 
+// Helper to get backend proxy API URL.
+// If the app is run on Vercel (or any custom domain), it will fetch the API from the active Cloud Run backend server.
+const getApiUrl = (endpointWithQueryParams: string): string => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    // Jika berjalan di localhost atau domain sandbox bawaan, gunakan relative path
+    if (hostname === 'localhost' || hostname.includes('127.0.0.1') || hostname.includes('.run.app')) {
+      return endpointWithQueryParams;
+    }
+  }
+  // Fallback ke server backend utama di Cloud Run jika diakses dari Vercel / domain eksternal
+  return `https://ais-pre-35bhwwbbhzsizbmolwcsha-461650495651.asia-southeast1.run.app${endpointWithQueryParams}`;
+};
+
 // Interfaces
 interface Transaction {
   id: string;
@@ -340,7 +354,7 @@ export default function App() {
       let responseStatus = 200;
       let responseOk = true;
       
-      const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=read&_t=${Date.now()}`;
+      const proxyUrl = getApiUrl(`/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=read&_t=${Date.now()}`);
       try {
         const response = await fetch(proxyUrl);
         responseStatus = response.status;
@@ -470,7 +484,7 @@ export default function App() {
       let responseStatus = 200;
       let responseOk = true;
       
-      const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=version&_t=${Date.now()}`;
+      const proxyUrl = getApiUrl(`/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=version&_t=${Date.now()}`);
       try {
         const response = await fetch(proxyUrl);
         responseStatus = response.status;
@@ -790,7 +804,7 @@ export default function App() {
     if (isLiveMode && webAppUrl) {
       setIsLoadingLive(true);
       try {
-        const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(webAppUrl)}&action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`;
+        const proxyUrl = getApiUrl(`/api/sheets-proxy?url=${encodeURIComponent(webAppUrl)}&action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`);
         const res = await fetch(proxyUrl);
         
         const text = await res.text();
@@ -888,7 +902,7 @@ export default function App() {
       setIsLoadingLive(true);
       try {
         const rowParam = rowId ? `&rowId=${rowId}` : '';
-        const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(webAppUrl)}&action=delete${rowParam}&id=${encodeURIComponent(id)}&_t=${Date.now()}`;
+        const proxyUrl = getApiUrl(`/api/sheets-proxy?url=${encodeURIComponent(webAppUrl)}&action=delete${rowParam}&id=${encodeURIComponent(id)}&_t=${Date.now()}`);
         const res = await fetch(proxyUrl);
         
         const text = await res.text();
