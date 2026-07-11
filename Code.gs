@@ -29,7 +29,9 @@ function doGet(e) {
         const outlet = e.parameter.outlet;
         const cash = Number(e.parameter.cash) || 0;
         const qris = Number(e.parameter.qris) || 0;
-        const result = addData(tanggal, outlet, cash, qris);
+        const belumBayar = Number(e.parameter.belumBayar) || 0;
+        const belumBayarNama = e.parameter.belumBayarNama || "";
+        const result = addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama);
         return ContentService.createTextOutput(JSON.stringify(result))
           .setMimeType(ContentService.MimeType.JSON);
       }
@@ -81,8 +83,10 @@ function doPost(e) {
       const outlet = params.outlet || (e.parameter ? e.parameter.outlet : undefined);
       const cash = Number(params.cash || (e.parameter ? e.parameter.cash : 0)) || 0;
       const qris = Number(params.qris || (e.parameter ? e.parameter.qris : 0)) || 0;
+      const belumBayar = Number(params.belumBayar || (e.parameter ? e.parameter.belumBayar : 0)) || 0;
+      const belumBayarNama = params.belumBayarNama || (e.parameter ? e.parameter.belumBayarNama : "") || "";
       
-      const result = addData(tanggal, outlet, cash, qris);
+      const result = addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama);
       return ContentService.createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -117,7 +121,7 @@ function getSheet() {
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
     // Tulis header jika sheet baru dibuat
-    sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
+    sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Belum Bayar", "Atas Nama", "Total", "Timestamp"]);
   }
   return sheet;
 }
@@ -219,10 +223,22 @@ function getData() {
       let outlet = "";
       let cash = 0;
       let qris = 0;
+      let belumBayar = 0;
+      let belumBayarNama = "";
       let total = 0;
       let timestamp = "";
       
-      if (isNewFormat) {
+      if (numCols >= 9) {
+        id = row[0] ? String(row[0]) : "";
+        dateVal = row[1];
+        outlet = row[2];
+        cash = Number(row[3]) || 0;
+        qris = Number(row[4]) || 0;
+        belumBayar = Number(row[5]) || 0;
+        belumBayarNama = row[6] ? String(row[6]) : "";
+        total = Number(row[7]) || 0;
+        timestamp = row[8] ? String(row[8]) : "";
+      } else if (isNewFormat) {
         id = row[0] ? String(row[0]) : "";
         dateVal = row[1];
         outlet = row[2];
@@ -258,6 +274,8 @@ function getData() {
         outlet: outlet,
         cash: cash,
         qris: qris,
+        belumBayar: belumBayar,
+        belumBayarNama: belumBayarNama,
         total: total,
         timestamp: timestamp
       };
@@ -273,9 +291,11 @@ function getData() {
  * @param {string} outlet - Nama outlet
  * @param {number} cash - Nominal cash
  * @param {number} qris - Nominal QRIS
+ * @param {number} belumBayar - Nominal belum bayar
+ * @param {string} belumBayarNama - Keterangan nama
  * @returns {Object} Hasil transaksi yang berhasil disimpan
  */
-function addData(tanggal, outlet, cash, qris) {
+function addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama) {
   try {
     const sheet = getSheet();
     const data = getData();
@@ -288,19 +308,53 @@ function addData(tanggal, outlet, cash, qris) {
     
     const cashVal = Number(cash) || 0;
     const qrisVal = Number(qris) || 0;
+    const belumBayarVal = Number(belumBayar) || 0;
+    const belumBayarNamaVal = belumBayarNama ? String(belumBayarNama).trim() : "";
     const totalVal = cashVal + qrisVal;
     const timestamp = new Date().toLocaleString("id-ID");
     const transactionId = generateOpsi3Id(tanggal);
     
-    const numCols = sheet.getLastColumn();
+    let numCols = sheet.getLastColumn();
     const firstVal = sheet.getRange(1, 1).getValue();
-    const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
+    let isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
-    if (isNewFormat) {
-      // Tambahkan baris baru dengan format 7 kolom
+    // Auto-migrate sheet dari 7 kolom ke 9 kolom
+    if (isNewFormat && numCols < 9) {
+      // Kolom awal: ID, Tanggal, Outlet, Cash, QRIS, Total, Timestamp
+      // Kita sisipkan "Belum Bayar" dan "Atas Nama" di kolom 6 & 7 (sebelum Total)
+      sheet.insertColumnsBefore(6, 2);
+      sheet.getRange(1, 6).setValue("Belum Bayar");
+      sheet.getRange(1, 7).setValue("Atas Nama");
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        // Isi Kolom 6 (Belum Bayar) dengan 0
+        const bbRange = sheet.getRange(2, 6, lastRow - 1, 1);
+        const bbVals = [];
+        for (let i = 0; i < lastRow - 1; i++) {
+          bbVals.push([0]);
+        }
+        bbRange.setValues(bbVals);
+        
+        // Isi Kolom 7 (Atas Nama) dengan string kosong
+        const namaRange = sheet.getRange(2, 7, lastRow - 1, 1);
+        const namaVals = [];
+        for (let i = 0; i < lastRow - 1; i++) {
+          namaVals.push([""]);
+        }
+        namaRange.setValues(namaVals);
+      }
+      numCols = 9; // Perbarui jumlah kolom setelah migrasi
+    }
+    
+    if (numCols >= 9) {
+      // Tambahkan baris baru dengan format 9 kolom
+      sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, belumBayarVal, belumBayarNamaVal, totalVal, timestamp]);
+    } else if (isNewFormat) {
+      // Tambahkan baris baru dengan format 7 kolom jika belum termigrasi
       sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
     } else {
-      // Otomatis lakukan migrasi sheet lama ke format 7 kolom dengan menambahkan kolom ID di depan
+      // Otomatis lakukan migrasi sheet lama ke format 9 kolom dengan menambahkan kolom ID di depan
       if (sheet.getLastRow() >= 1) {
         sheet.insertColumnBefore(1);
         sheet.getRange(1, 1).setValue("ID");
@@ -313,12 +367,33 @@ function addData(tanggal, outlet, cash, qris) {
           }
           idRange.setValues(idValues);
         }
-        // Sekarang lembar kerja sudah bermigrasi ke 7 kolom
-        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+        
+        // Sekarang lembar kerja sudah bermigrasi ke 7 kolom, mari migrasi ke 9 kolom
+        sheet.insertColumnsBefore(6, 2);
+        sheet.getRange(1, 6).setValue("Belum Bayar");
+        sheet.getRange(1, 7).setValue("Atas Nama");
+        const updatedLastRow = sheet.getLastRow();
+        if (updatedLastRow > 1) {
+          const bbRange = sheet.getRange(2, 6, updatedLastRow - 1, 1);
+          const bbVals = [];
+          for (let i = 0; i < updatedLastRow - 1; i++) {
+            bbVals.push([0]);
+          }
+          bbRange.setValues(bbVals);
+          
+          const namaRange = sheet.getRange(2, 7, updatedLastRow - 1, 1);
+          const namaVals = [];
+          for (let i = 0; i < updatedLastRow - 1; i++) {
+            namaVals.push([""]);
+          }
+          namaRange.setValues(namaVals);
+        }
+        
+        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, belumBayarVal, belumBayarNamaVal, totalVal, timestamp]);
       } else {
         // Lembar kerja kosong total
-        sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
-        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+        sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Belum Bayar", "Atas Nama", "Total", "Timestamp"]);
+        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, belumBayarVal, belumBayarNamaVal, totalVal, timestamp]);
       }
     }
     

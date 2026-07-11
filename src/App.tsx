@@ -43,6 +43,8 @@ interface Transaction {
   qris: number;
   total: number;
   timestamp: string;
+  belumBayar?: number;
+  belumBayarNama?: string;
 }
 
 // Helper to generate simple alphanumeric transaction ID (Format: D1799C)
@@ -277,6 +279,8 @@ export default function App() {
   const [outlet, setOutlet] = useState('');
   const [cash, setCash] = useState<number | ''>('');
   const [qris, setQris] = useState<number | ''>('');
+  const [belumBayar, setBelumBayar] = useState<number | ''>('');
+  const [belumBayarNama, setBelumBayarNama] = useState<string>('');
   const [searchQuery, setSearchQuery] = useState('');
 
   // New States for Employee Flow and Dual-View Login
@@ -348,9 +352,11 @@ export default function App() {
             id: finalId,
             tanggal: item.tanggal,
             outlet: item.outlet,
-            cash: item.cash,
-            qris: item.qris,
-            total: item.total,
+            cash: Number(item.cash) || 0,
+            qris: Number(item.qris) || 0,
+            total: Number(item.total) || 0,
+            belumBayar: Number(item.belumBayar || item.belum_bayar || item.unpaid || 0) || 0,
+            belumBayarNama: item.belumBayarNama || item.belum_bayar_nama || item.atasNama || item.atas_nama || item.customerName || '',
             timestamp: item.timestamp || '',
             rowId: item.rowId
           };
@@ -614,10 +620,12 @@ export default function App() {
     const cashValue = Number(cash) || 0;
     const qrisValue = Number(qris) || 0;
     const totalValue = cashValue + qrisValue;
+    const belumBayarValue = Number(belumBayar) || 0;
+    const belumBayarNamaValue = belumBayarNama.trim();
 
     if (isLiveMode && webAppUrl) {
       setIsLoadingLive(true);
-      const url = `${webAppUrl}?action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&_t=${Date.now()}`;
+      const url = `${webAppUrl}?action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`;
       fetch(url)
         .then(res => res.json())
         .then(resData => {
@@ -630,6 +638,8 @@ export default function App() {
               cash: cashValue,
               qris: qrisValue,
               total: totalValue,
+              belumBayar: belumBayarValue,
+              belumBayarNama: belumBayarNamaValue,
               timestamp: new Date().toLocaleString('id-ID')
             };
             setSubmittedTx(newTx);
@@ -638,6 +648,8 @@ export default function App() {
             setOutlet('');
             setCash('');
             setQris('');
+            setBelumBayar('');
+            setBelumBayarNama('');
             // Refresh data
             fetchLiveTransactions();
           } else {
@@ -663,6 +675,8 @@ export default function App() {
         cash: cashValue,
         qris: qrisValue,
         total: totalValue,
+        belumBayar: belumBayarValue,
+        belumBayarNama: belumBayarNamaValue,
         timestamp: new Date().toLocaleString('id-ID')
       };
 
@@ -674,6 +688,8 @@ export default function App() {
       setOutlet('');
       setCash('');
       setQris('');
+      setBelumBayar('');
+      setBelumBayarNama('');
     }
   };
 
@@ -1332,7 +1348,8 @@ function deleteData(rowId) {
       return;
     }
     
-    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent('https://websaffa.vercel.app/')}`;
+    const targetUrl = getMainTargetUrl();
+    const qrImageUrl = `https://api.qrserver.com/v1/create-qr-code/?size=400x400&data=${encodeURIComponent(targetUrl)}`;
     
     printWindow.document.write(`
       <html>
@@ -1439,7 +1456,7 @@ function deleteData(rowId) {
               <img src="${qrImageUrl}" alt="QR Code" />
             </div>
             <div class="instruction">SCAN BARCODE UNTUK ISI OMSET</div>
-            <div class="url-text">https://websaffa.vercel.app/</div>
+            <div class="url-text">${targetUrl}</div>
           </div>
           <script>
             window.onload = function() {
@@ -1458,6 +1475,23 @@ function deleteData(rowId) {
   const handleCopyCode = (text: string, fileName: string) => {
     navigator.clipboard.writeText(text);
     triggerToast(`Isi file ${fileName} berhasil disalin ke clipboard!`, 'success');
+  };
+
+  // Dynamically compute the main QR Code url target
+  const getMainTargetUrl = () => {
+    let baseUrl = customBaseUrl || (typeof window !== 'undefined' ? window.location.origin + window.location.pathname : 'https://websaffa.vercel.app/');
+    if (baseUrl.includes('ais-dev-')) {
+      baseUrl = baseUrl.replace('ais-dev-', 'ais-pre-');
+    }
+    const params = typeof window !== 'undefined' ? new URLSearchParams(window.location.search) : new URLSearchParams();
+    const webapp = params.get('webapp') || params.get('url') || webAppUrl;
+    
+    if (webapp) {
+      const newParams = new URLSearchParams();
+      newParams.set('webapp', webapp);
+      return `${baseUrl}?${newParams.toString()}`;
+    }
+    return baseUrl;
   };
 
   return (
@@ -1566,6 +1600,20 @@ function deleteData(rowId) {
                           <span className="text-xs text-gray-500 font-semibold">Uang QRIS (Non-Tunai)</span>
                           <span className="text-xs font-bold text-gray-800">{formatRupiah(submittedTx.qris)}</span>
                         </div>
+                        {submittedTx.belumBayar !== undefined && submittedTx.belumBayar > 0 && (
+                          <>
+                            <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50 text-rose-600">
+                              <span className="text-xs font-semibold">Belum Bayar (Piutang)</span>
+                              <span className="text-xs font-extrabold">{formatRupiah(submittedTx.belumBayar)}</span>
+                            </div>
+                            {submittedTx.belumBayarNama && (
+                              <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50 text-rose-600">
+                                <span className="text-xs font-semibold">Atas Nama Siapa</span>
+                                <span className="text-xs font-extrabold">{submittedTx.belumBayarNama}</span>
+                              </div>
+                            )}
+                          </>
+                        )}
                         <div className="flex justify-between items-center pt-1.5">
                           <span className="text-xs font-bold text-gray-500">Total Omset</span>
                           <span className="text-sm font-black text-saffa-green bg-green-50 px-2.5 py-1 rounded-lg">{formatRupiah(submittedTx.total)}</span>
@@ -1714,6 +1762,60 @@ function deleteData(rowId) {
                                 }}
                                 className="block w-full pl-11 pr-4 py-3 bg-white/60 border border-gray-200 rounded-2xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-xs font-semibold"
                               />
+                            </div>
+                          </div>
+
+                          {/* Piutang / Belum Bayar Section */}
+                          <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-3xl space-y-3.5">
+                            <div className="text-[10px] uppercase font-black text-rose-600 tracking-wider flex items-center gap-1.5">
+                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                              <span>Transaksi Belum Bayar / Piutang (Opsional)</span>
+                            </div>
+                            
+                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                              <div>
+                                <div className="flex justify-between items-center mb-1">
+                                  <label htmlFor="belum-bayar-input" className="block text-[9px] uppercase font-bold text-gray-500">
+                                    Nominal Belum Bayar
+                                  </label>
+                                  {belumBayar !== '' && (
+                                    <span className="text-[10px] font-bold text-rose-600">
+                                      {formatRupiah(Number(belumBayar))}
+                                    </span>
+                                  )}
+                                </div>
+                                <div className="relative rounded-xl shadow-sm">
+                                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-xs">
+                                    Rp
+                                  </div>
+                                  <input
+                                    type="number"
+                                    id="belum-bayar-input"
+                                    min="0"
+                                    placeholder="0"
+                                    value={belumBayar}
+                                    onChange={(e) => {
+                                      const val = e.target.value;
+                                      setBelumBayar(val === '' ? '' : Number(val));
+                                    }}
+                                    className="block w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all text-xs font-semibold"
+                                  />
+                                </div>
+                              </div>
+
+                              <div>
+                                <label htmlFor="belum-bayar-nama-input" className="block text-[9px] uppercase font-bold text-gray-500 mb-1">
+                                  Atas Nama Siapa
+                                </label>
+                                <input
+                                  type="text"
+                                  id="belum-bayar-nama-input"
+                                  placeholder="Nama pelanggan / keterangan..."
+                                  value={belumBayarNama}
+                                  onChange={(e) => setBelumBayarNama(e.target.value)}
+                                  className="block w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all text-xs font-semibold"
+                                />
+                              </div>
                             </div>
                           </div>
 
@@ -2308,6 +2410,8 @@ function deleteData(rowId) {
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider">Outlet</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Cash</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">QRIS</th>
+                          <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right text-rose-600 bg-rose-50/30">Belum Bayar</th>
+                          <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-rose-600 bg-rose-50/30">Atas Nama</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Total</th>
                           <th className="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-center">Aksi</th>
                         </tr>
@@ -2315,7 +2419,7 @@ function deleteData(rowId) {
                       <tbody className="divide-y divide-gray-100">
                         {filteredTransactions.length === 0 ? (
                           <tr>
-                            <td colSpan={8} className="px-6 py-12 text-center text-sm text-gray-400">
+                            <td colSpan={10} className="px-6 py-12 text-center text-sm text-gray-400">
                               <div className="flex flex-col items-center justify-center gap-2">
                                 <Info className="w-8 h-8 text-gray-300" />
                                 <span>Tidak ditemukan riwayat data transaksi harian.</span>
@@ -2352,6 +2456,12 @@ function deleteData(rowId) {
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-600 font-semibold">
                                 {formatRupiah(item.qris)}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap text-right font-mono text-rose-600 font-bold bg-rose-50/20">
+                                {item.belumBayar ? formatRupiah(item.belumBayar) : '-'}
+                              </td>
+                              <td className="px-6 py-4 whitespace-nowrap font-semibold text-rose-700 text-xs bg-rose-50/20">
+                                {item.belumBayarNama || '-'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right font-bold font-mono text-saffa-pink">
                                 {formatRupiah(item.total)}
@@ -2553,15 +2663,15 @@ function deleteData(rowId) {
                     
                     <div className="mx-auto w-56 h-56 bg-pink-50/50 border border-pink-100 rounded-2xl p-4 flex items-center justify-center shadow-inner">
                       <img 
-                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent('https://websaffa.vercel.app/')}`}
+                        src={`https://api.qrserver.com/v1/create-qr-code/?size=300x300&data=${encodeURIComponent(getMainTargetUrl())}`}
                         alt="Barcode Utama Saffa"
                         className="w-full h-full object-contain"
                         referrerPolicy="no-referrer"
                       />
                     </div>
                     
-                    <div className="text-[11px] font-bold text-gray-600 bg-gray-50 py-1.5 px-3 rounded-full inline-block">
-                      Tujuan: <span className="font-mono text-saffa-pink font-semibold">https://websaffa.vercel.app/</span>
+                    <div className="text-[11px] font-bold text-gray-600 bg-gray-50 py-1.5 px-3 rounded-full inline-block max-w-full truncate">
+                      Tujuan: <span className="font-mono text-saffa-pink font-semibold break-all whitespace-pre-wrap">{getMainTargetUrl()}</span>
                     </div>
                   </div>
 
@@ -2577,7 +2687,8 @@ function deleteData(rowId) {
                     
                     <button
                       onClick={() => {
-                        navigator.clipboard.writeText('https://websaffa.vercel.app/');
+                        const targetUrl = getMainTargetUrl();
+                        navigator.clipboard.writeText(targetUrl);
                         triggerToast('Link website disalin ke clipboard!', 'success');
                       }}
                       className="w-full sm:w-auto px-6 py-3.5 bg-white border border-gray-200 hover:bg-gray-50 text-gray-700 font-bold rounded-2xl shadow-sm transition-all flex items-center justify-center gap-2 text-xs cursor-pointer"

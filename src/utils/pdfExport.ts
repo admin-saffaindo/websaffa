@@ -9,6 +9,8 @@ interface Transaction {
   qris: number;
   total: number;
   timestamp: string;
+  belumBayar?: number;
+  belumBayarNama?: string;
 }
 
 // Helper to format currency in Indonesian Rupiah
@@ -402,14 +404,16 @@ export const exportToPDF = async (
     t.outlet,
     formatRupiah(t.cash),
     formatRupiah(t.qris),
+    t.belumBayar ? formatRupiah(t.belumBayar) : '-',
+    t.belumBayarNama || '-',
     formatRupiah(t.total)
   ]);
 
   autoTable(doc, {
     startY: outletY + 11,
     margin: { left: 15, right: 15 },
-    head: [['No', 'ID Transaksi', 'Tanggal', 'Jam Input', 'Outlet', 'Cash', 'QRIS', 'Total']],
-    body: txRows.length > 0 ? txRows : [['-', 'Tidak ada transaksi', '-', '-', '-', '-', '-', '-']],
+    head: [['No', 'ID Transaksi', 'Tanggal', 'Jam Input', 'Outlet', 'Cash', 'QRIS', 'Blm Bayar', 'Atas Nama', 'Total']],
+    body: txRows.length > 0 ? txRows : [['-', 'Tidak ada transaksi', '-', '-', '-', '-', '-', '-', '-', '-']],
     theme: 'striped',
     headStyles: {
       fillColor: [120, 185, 40], // Saffa Green header
@@ -419,18 +423,20 @@ export const exportToPDF = async (
       halign: 'left'
     },
     bodyStyles: {
-      fontSize: 7.5,
+      fontSize: 7.2,
       textColor: [70, 70, 70]
     },
     columnStyles: {
-      0: { cellWidth: 10, halign: 'center' },
-      1: { cellWidth: 25, halign: 'center', fontStyle: 'bold' },
-      2: { cellWidth: 20 },
-      3: { cellWidth: 18, halign: 'center' },
-      4: { cellWidth: 32 },
-      5: { cellWidth: 25, halign: 'right' },
-      6: { cellWidth: 25, halign: 'right' },
-      7: { cellWidth: 25, halign: 'right', fontStyle: 'bold' }
+      0: { cellWidth: 8, halign: 'center' },
+      1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+      2: { cellWidth: 15 },
+      3: { cellWidth: 15, halign: 'center' },
+      4: { cellWidth: 25 },
+      5: { cellWidth: 20, halign: 'right' },
+      6: { cellWidth: 20, halign: 'right' },
+      7: { cellWidth: 20, halign: 'right' }, // Blm Bayar
+      8: { cellWidth: 17 }, // Atas Nama
+      9: { cellWidth: 20, halign: 'right', fontStyle: 'bold' }
     }
   });
 
