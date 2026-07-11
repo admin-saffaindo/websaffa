@@ -330,6 +330,18 @@
                       class="block w-full px-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-sm">
                   </div>
 
+                  <!-- PENGIRIM -->
+                  <div>
+                    <label for="inputPengirim" class="block text-xs font-semibold text-gray-500 uppercase tracking-wide mb-1.5">Email / Nama Pengirim <span class="text-saffa-pink">*</span></label>
+                    <div class="relative rounded-xl shadow-sm">
+                      <div class="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-gray-400">
+                        <i data-lucide="user" class="w-4 h-4"></i>
+                      </div>
+                      <input type="text" id="inputPengirim" required placeholder="Masukkan email atau nama Anda..."
+                        class="block w-full pl-10 pr-4 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-saffa-pink focus:border-transparent transition-all text-sm">
+                    </div>
+                  </div>
+
                   <!-- TOTAL PREVIEW -->
                   <div class="p-3 bg-pink-50/50 rounded-xl border border-pink-100/50 flex justify-between items-center text-xs">
                     <span class="font-medium text-gray-500">Estimasi Total Omset:</span>
@@ -464,6 +476,7 @@
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Cash</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">QRIS</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Belum Bayar</th>
+                  <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-center">Pengirim</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-right">Total</th>
                   <th class="px-6 py-4 font-bold text-xs text-gray-500 uppercase tracking-wider text-center">Aksi</th>
                 </tr>
@@ -471,7 +484,7 @@
               <tbody id="tableBody" class="divide-y divide-gray-100">
                 <!-- Data will load here dynamically -->
                 <tr>
-                  <td colspan="8" class="px-6 py-8 text-center text-xs text-gray-400">
+                  <td colspan="9" class="px-6 py-8 text-center text-xs text-gray-400">
                     <div class="flex flex-col items-center justify-center gap-2">
                       <div class="w-6 h-6 border-2 border-saffa-pink border-t-transparent rounded-full animate-spin"></div>
                       <span>Menghubungkan ke server...</span>
@@ -538,6 +551,15 @@
       } else {
         showLoginPage();
         fetchServerData(); // Ambil data agar dropdown menonaktifkan outlet yang sudah diisi harian
+      }
+
+      // Pre-fill pengirim dari local storage jika ada
+      const savedPengirim = localStorage.getItem('saffa_user_pengirim');
+      if (savedPengirim) {
+        const pInput = document.getElementById('inputPengirim');
+        if (pInput) {
+          pInput.value = savedPengirim;
+        }
       }
 
       // Event listener live total preview
@@ -1122,6 +1144,10 @@
         doc.text('DAFTAR TRANSAKSI RINCI', 15, outletY + 8);
 
         const txRows = filtered.map(function(t, idx) {
+          const pengirimText = t.pengirim && t.pengirim !== '-' ? t.pengirim : '';
+          const atasNamaText = t.belumBayarNama || '';
+          const gabungInfo = atasNamaText + (pengirimText ? (atasNamaText ? ` (${pengirimText})` : pengirimText) : '');
+          
           return [
             idx + 1,
             t.id,
@@ -1131,7 +1157,7 @@
             formatRupiah(t.cash),
             formatRupiah(t.qris),
             t.belumBayar ? formatRupiah(t.belumBayar) : '-',
-            t.belumBayarNama || '-',
+            gabungInfo || '-',
             formatRupiah(t.total)
           ];
         });
@@ -1139,7 +1165,7 @@
         doc.autoTable({
           startY: outletY + 11,
           margin: { left: 15, right: 15 },
-          head: [['No', 'ID Transaksi', 'Tanggal', 'Jam Input', 'Outlet', 'Cash', 'QRIS', 'Blm Bayar', 'Atas Nama', 'Total']],
+          head: [['No', 'ID Transaksi', 'Tanggal', 'Jam Input', 'Outlet', 'Cash', 'QRIS', 'Blm Bayar', 'Atas Nama / Pengirim', 'Total']],
           body: txRows.length > 0 ? txRows : [['-', 'Tidak ada transaksi', '-', '-', '-', '-', '-', '-', '-', '-']],
           theme: 'striped',
           headStyles: {
@@ -1474,11 +1500,15 @@
       const qris = parseInt(document.getElementById('inputQris').value) || 0;
       const belumBayar = parseInt(document.getElementById('inputBelumBayar').value) || 0;
       const belumBayarNama = document.getElementById('inputBelumBayarNama').value.trim();
+      const pengirim = document.getElementById('inputPengirim').value.trim();
 
-      if (!date || !outlet) {
+      if (!date || !outlet || !pengirim) {
         showToast("Lengkapi form terlebih dahulu!", "error");
         return;
       }
+
+      // Simpan pengirim ke local storage agar otomatis terisi nanti
+      localStorage.setItem('saffa_user_pengirim', pengirim);
 
       // Matikan tombol sementara proses loading
       btn.disabled = true;
@@ -1499,7 +1529,7 @@
             btn.innerHTML = `<i data-lucide="save" class="w-4 h-4"></i> Simpan Transaksi`;
             lucide.createIcons();
           })
-          .addData(date, outlet, cash, qris, belumBayar, belumBayarNama);
+          .addData(date, outlet, cash, qris, belumBayar, belumBayarNama, pengirim);
       } else {
         // Mode Simulasi Offline
         setTimeout(() => {
@@ -1524,6 +1554,7 @@
             belumBayar: belumBayar,
             belumBayarNama: belumBayarNama,
             total: cash + qris,
+            pengirim: pengirim,
             timestamp: new Date().toLocaleString("id-ID")
           };
 
@@ -1573,6 +1604,8 @@
           ? `${formatRupiah(item.belumBayar)}${item.belumBayarNama ? ` (${item.belumBayarNama})` : ''}`
           : '-';
           
+        const pengirimText = item.pengirim && item.pengirim !== '-' ? item.pengirim : '-';
+          
         rowsHTML += `
           <tr class="hover:bg-pink-50/20 transition-all">
             <td class="px-6 py-4 whitespace-nowrap font-mono text-xs text-gray-500 font-bold">${item.id || '-'}</td>
@@ -1585,6 +1618,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-600">${formatRupiah(item.cash)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-600">${formatRupiah(item.qris)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-600 text-xs">${belumBayarText}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-center text-xs text-gray-500 font-medium">${pengirimText}</td>
             <td class="px-6 py-4 whitespace-nowrap text-right font-semibold font-mono text-saffa-pink">${formatRupiah(item.total)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-center">
               <button onclick="handleDelete(${item.rowId}, '${item.id || ""}', '${item.outlet}', '${item.tanggal}')"
@@ -1643,7 +1677,7 @@
     function showTableLoading() {
       document.getElementById('tableBody').innerHTML = `
         <tr>
-          <td colspan="8" class="px-6 py-8 text-center text-xs text-gray-400">
+          <td colspan="9" class="px-6 py-8 text-center text-xs text-gray-400">
             <div class="flex flex-col items-center justify-center gap-2">
               <div class="w-6 h-6 border-2 border-saffa-pink border-t-transparent rounded-full animate-spin"></div>
               <span>Memperbarui data...</span>
@@ -1656,7 +1690,7 @@
     function showTableEmpty(message) {
       document.getElementById('tableBody').innerHTML = `
         <tr>
-          <td colspan="8" class="px-6 py-10 text-center text-sm text-gray-400">
+          <td colspan="9" class="px-6 py-10 text-center text-sm text-gray-400">
             <div class="flex flex-col items-center justify-center gap-2">
               <i data-lucide="info" class="w-8 h-8 text-gray-300"></i>
               <span>${message}</span>
