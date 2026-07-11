@@ -111,6 +111,15 @@ export default function App() {
     return sessionStorage.getItem('react_isAdmin') === 'true';
   });
   
+  // Fitur Pengecekan Versi Otomatis
+  const [currentAppVersion] = useState<string>('1.0.0');
+  const [latestVersion, setLatestVersion] = useState<string>('1.0.0');
+  const [changelog, setChangelog] = useState<string>('');
+  const [hasNewVersion, setHasNewVersion] = useState<boolean>(false);
+  const [showVersionUpdateModal, setShowVersionUpdateModal] = useState<boolean>(false);
+  const [isCheckingVersion, setIsCheckingVersion] = useState<boolean>(false);
+  const [versionError, setVersionError] = useState<string | null>(null);
+  
   // Auth states
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState(false);
@@ -454,6 +463,87 @@ export default function App() {
     }
   };
 
+  // Function to check app version from Google Sheets Settings sheet
+  const checkAppVersion = async (urlToUse = webAppUrl, silent = true) => {
+    if (!urlToUse) return;
+    setIsCheckingVersion(true);
+    setVersionError(null);
+    try {
+      let text = '';
+      let responseStatus = 200;
+      let responseOk = true;
+      
+      const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=version&_t=${Date.now()}`;
+      try {
+        const response = await fetch(proxyUrl);
+        responseStatus = response.status;
+        responseOk = response.ok;
+        text = await response.text();
+        
+        // Detect if the proxy returned static index.html
+        const isOurStaticIndex = responseOk && (
+          text.includes('<div id="root">') || 
+          text.includes('src="/src/main.tsx"') || 
+          text.includes('<title>My Google AI Studio App</title>')
+        );
+        
+        if (responseStatus === 404 || isOurStaticIndex) {
+          const directUrl = `${urlToUse}${urlToUse.includes('?') ? '&' : '?'}action=version&_t=${Date.now()}`;
+          const directResponse = await fetch(directUrl);
+          responseStatus = directResponse.status;
+          responseOk = directResponse.ok;
+          text = await directResponse.text();
+        }
+      } catch (proxyErr) {
+        const directUrl = `${urlToUse}${urlToUse.includes('?') ? '&' : '?'}action=version&_t=${Date.now()}`;
+        const directResponse = await fetch(directUrl);
+        responseStatus = directResponse.status;
+        responseOk = directResponse.ok;
+        text = await directResponse.text();
+      }
+
+      if (!responseOk) {
+        throw new Error(`HTTP error! status: ${responseStatus}`);
+      }
+
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Respons dari server tidak valid (bukan format JSON).');
+      }
+
+      if (data && data.success && data.latestVersion) {
+        const remoteVersion = String(data.latestVersion).trim();
+        setLatestVersion(remoteVersion);
+        setChangelog(data.changelog || 'Pembaruan fitur, optimalisasi antarmuka bento-grid, dan peningkatan stabilitas sinkronisasi.');
+        
+        if (remoteVersion !== currentAppVersion) {
+          setHasNewVersion(true);
+          if (!silent) {
+            triggerToast(`Pembaruan tersedia! Versi terbaru: v${remoteVersion}`, 'success');
+            setShowVersionUpdateModal(true);
+          }
+        } else {
+          setHasNewVersion(false);
+          if (!silent) {
+            triggerToast('Aplikasi Saffa Anda sudah up-to-date (Versi v1.0.0).', 'success');
+          }
+        }
+      } else {
+        throw new Error('Format data versi dari Sheets tidak dikenal.');
+      }
+    } catch (err: any) {
+      console.warn('[Version Check Error]', err);
+      setVersionError(err.message || String(err));
+      if (!silent) {
+        triggerToast('Gagal memverifikasi versi: ' + (err.message || 'Error tidak diketahui'), 'error');
+      }
+    } finally {
+      setIsCheckingVersion(false);
+    }
+  };
+
   // Chart ref
   const chartCanvasRef = useRef<HTMLCanvasElement | null>(null);
   const chartInstanceRef = useRef<Chart | null>(null);
@@ -469,6 +559,7 @@ export default function App() {
   useEffect(() => {
     if (isLiveMode && webAppUrl && isLoggedIn) {
       fetchLiveTransactions(webAppUrl, false);
+      checkAppVersion(webAppUrl, true);
     }
   }, [isLiveMode, isLoggedIn]);
 
@@ -2728,6 +2819,67 @@ function deleteData(rowId) {
                     </div>
                   )}
 
+                  {/* VERSION CONTROL & UPDATE ENGINE */}
+                  {isLiveMode && webAppUrl && (
+                    <div className="mt-4 p-4 bg-white/50 border border-white/80 rounded-2xl">
+                      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                        <div className="flex items-center gap-2.5">
+                          <div className="w-8 h-8 rounded-lg bg-pink-50 flex items-center justify-center text-saffa-pink">
+                            <Sparkles className="w-4 h-4" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="text-xs font-bold text-gray-800">Versi Dashboard:</span>
+                              <span className="px-2 py-0.5 rounded-md bg-gray-100 text-[10px] font-bold text-gray-600 font-mono">
+                                v{currentAppVersion}
+                              </span>
+                            </div>
+                            <p className="text-[11px] text-gray-500 mt-0.5">
+                              {isCheckingVersion ? (
+                                <span className="flex items-center gap-1.5">
+                                  <RefreshCw className="w-3.5 h-3.5 animate-spin text-saffa-pink" />
+                                  Menghubungkan ke Google Sheets untuk verifikasi versi...
+                                </span>
+                              ) : hasNewVersion ? (
+                                <span className="text-amber-600 font-semibold flex items-center gap-1">
+                                  ⚠️ Pembaruan fitur tersedia (v{latestVersion}!)
+                                </span>
+                              ) : versionError ? (
+                                <span className="text-rose-500">
+                                  Gagal memverifikasi: {versionError}
+                                </span>
+                              ) : (
+                                <span className="text-green-600 font-medium">
+                                  ✓ Dashboard Anda sudah up-to-date.
+                                </span>
+                              )}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="flex items-center gap-2">
+                          <button
+                            onClick={() => checkAppVersion(webAppUrl, false)}
+                            disabled={isCheckingVersion}
+                            className="px-3 py-1.5 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-semibold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer bg-white"
+                          >
+                            <RefreshCw className={`w-3 h-3 ${isCheckingVersion ? 'animate-spin' : ''}`} />
+                            Cek Versi
+                          </button>
+                          {hasNewVersion && (
+                            <button
+                              onClick={() => setShowVersionUpdateModal(true)}
+                              className="px-3 py-1.5 bg-[#e90076] hover:bg-[#c80064] text-white text-xs font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer shadow-sm shadow-pink-100"
+                            >
+                              <Sparkles className="w-3 h-3" />
+                              Lihat Update
+                            </button>
+                          )}
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {connectionError && (
                     <div className="mt-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl">
                       <div className="flex items-start gap-2.5">
@@ -3123,6 +3275,81 @@ function deleteData(rowId) {
         )}
 
       </div>
+
+      {/* VERSION UPDATE MODAL */}
+      {showVersionUpdateModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-gray-900/60 backdrop-blur-md">
+          <div className="bg-white/95 backdrop-blur-xl border border-white/80 rounded-[2.5rem] p-6 md:p-8 max-w-lg w-full shadow-2xl relative animate-in fade-in zoom-in duration-200">
+            {/* Close Button */}
+            <button 
+              onClick={() => setShowVersionUpdateModal(false)}
+              className="absolute top-5 right-5 p-2 text-gray-400 hover:text-gray-700 hover:bg-gray-100 rounded-full transition-all cursor-pointer border-0 bg-transparent"
+            >
+              <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+
+            {/* Sparkles icon */}
+            <div className="w-14 h-14 rounded-2xl bg-pink-100 text-[#e90076] flex items-center justify-center mb-5">
+              <Sparkles className="w-8 h-8" />
+            </div>
+
+            <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-black bg-pink-50 text-saffa-pink uppercase tracking-wide">
+              Pembaruan Tersedia
+            </span>
+
+            <h3 className="text-2xl font-black text-gray-900 tracking-tight mt-3">
+              Saffa Dashboard v{latestVersion}
+            </h3>
+            
+            <p className="text-sm text-gray-500 mt-1 font-semibold">
+              Versi Anda saat ini: <span className="font-mono text-gray-700 bg-gray-100 px-1.5 py-0.5 rounded">v{currentAppVersion}</span>
+            </p>
+
+            <div className="mt-6 space-y-4">
+              <div className="bg-pink-50/40 border border-pink-100/50 rounded-2xl p-4">
+                <h4 className="text-xs font-bold text-saffa-pink uppercase tracking-wider mb-2">
+                  Apa yang Baru di Versi ini?
+                </h4>
+                <p className="text-xs text-gray-700 leading-relaxed font-medium">
+                  {changelog || 'Pembaruan stabilitas, perbaikan bug minor, peningkatan penanganan offline, dan optimasi performa sinkronisasi bento-grid.'}
+                </p>
+              </div>
+
+              <div className="bg-green-50/40 border border-green-100/50 rounded-2xl p-4 flex items-start gap-3">
+                <Info className="w-4 h-4 text-saffa-green flex-shrink-0 mt-0.5" />
+                <div>
+                  <h5 className="text-xs font-bold text-saffa-green uppercase tracking-wider">
+                    Bagaimana cara memperbarui?
+                  </h5>
+                  <p className="text-[11px] text-gray-600 leading-relaxed mt-1">
+                    Pembaruan ini sepenuhnya kompatibel. Anda dapat mengunduh atau menyalin kode <code className="bg-white px-1 py-0.5 rounded border">Code.gs</code> atau <code className="bg-white px-1 py-0.5 rounded border">Index.html</code> baru dari tab <strong>"Ekspor GAS"</strong> di dashboard Anda, kemudian pasang kembali di Google Apps Script Anda.
+                  </p>
+                </div>
+              </div>
+            </div>
+
+            <div className="mt-8 flex gap-3">
+              <button
+                onClick={() => {
+                  setShowVersionUpdateModal(false);
+                  setActiveTab('gas');
+                }}
+                className="flex-1 py-3 bg-[#e90076] hover:bg-[#c80064] text-white text-xs font-black rounded-2xl transition-all cursor-pointer shadow-md shadow-pink-100 text-center uppercase tracking-wide"
+              >
+                Unduh Kode Pembaruan
+              </button>
+              <button
+                onClick={() => setShowVersionUpdateModal(false)}
+                className="px-5 py-3 border border-gray-200 hover:bg-gray-50 text-gray-700 text-xs font-bold rounded-2xl transition-all cursor-pointer bg-white text-center uppercase tracking-wide"
+              >
+                Nanti Saja
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* TOAST PANEL */}
       <div 

@@ -24,6 +24,12 @@ function doGet(e) {
           .setMimeType(ContentService.MimeType.JSON);
       }
       
+      if (action === "version") {
+        const versionInfo = getVersionInfo();
+        return ContentService.createTextOutput(JSON.stringify(versionInfo))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
       if (action === "add") {
         const tanggal = e.parameter.tanggal;
         const outlet = e.parameter.outlet;
@@ -282,6 +288,51 @@ function getData() {
     });
   } catch (error) {
     throw new Error("Gagal mengambil data: " + error.message);
+  }
+}
+
+/**
+ * Mendapatkan info versi terbaru dan catatan rilis (changelog) dari sheet Settings
+ */
+function getVersionInfo() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName("Settings");
+    if (!sheet) {
+      sheet = ss.insertSheet("Settings");
+      sheet.appendRow(["Key", "Value"]);
+      sheet.appendRow(["dashboard_version", "1.1.0"]);
+      sheet.appendRow(["changelog", "Pembaruan sistem sinkronisasi otomatis, visualisasi bento-grid, dan perbaikan penanganan koneksi offline."]);
+    }
+    
+    const lastRow = sheet.getLastRow();
+    let version = "1.1.0";
+    let changelog = "Pembaruan sistem sinkronisasi otomatis, visualisasi bento-grid, dan perbaikan penanganan koneksi offline.";
+    
+    if (lastRow > 1) {
+      const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+      values.forEach(row => {
+        const key = String(row[0]).trim().toLowerCase();
+        const val = String(row[1]).trim();
+        if (key === "dashboard_version" || key === "version") {
+          version = val;
+        } else if (key === "changelog") {
+          changelog = val;
+        }
+      });
+    }
+    
+    return {
+      success: true,
+      latestVersion: version,
+      changelog: changelog
+    };
+  } catch (err) {
+    return {
+      success: false,
+      latestVersion: "1.1.0",
+      changelog: "Gagal memuat info versi dari Sheets: " + err.message
+    };
   }
 }
 
