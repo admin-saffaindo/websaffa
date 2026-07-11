@@ -33,7 +33,7 @@ const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-10321
 
 // Default Google Apps Script URL.
 // Anda dapat memasukkan URL Web App hasil deploy Apps Script Anda di sini agar terkunci otomatis untuk semua pengguna.
-const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbw27B5bIu4riNnn3cghiIXGuat6KbcaZAqjsWs_gxaxowHcuU77z84DIblIz8IS8dPHfw/exec';
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbx91zEJqCtXQwuqfgBB2s7AhQDhVOrsLOkz38rtRjacx5UroJD4IP9UOv1YO4y0u8tz3A/exec';
 
 // Interfaces
 interface Transaction {
@@ -130,37 +130,9 @@ export default function App() {
   const [passwordInput, setPasswordInput] = useState('');
   const [authError, setAuthError] = useState(false);
 
-  // Google Sheets Web App URL integration
-  const [webAppUrl, setWebAppUrl] = useState<string>(() => {
-    // 1. Periksa parameter query URL (?webapp=... atau ?url=...)
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      const urlParam = params.get('webapp') || params.get('url');
-      if (urlParam) {
-        localStorage.setItem('saffa_web_app_url', urlParam);
-        localStorage.setItem('saffa_is_live_mode', 'true');
-        return urlParam;
-      }
-    }
-    // 2. Periksa localStorage
-    const saved = localStorage.getItem('saffa_web_app_url');
-    if (saved) return saved;
-    // 3. Gunakan URL bawaan jika ada
-    return DEFAULT_WEB_APP_URL || '';
-  });
-  const [isLiveMode, setIsLiveMode] = useState<boolean>(() => {
-    if (typeof window !== 'undefined') {
-      const params = new URLSearchParams(window.location.search);
-      if (params.get('webapp') || params.get('url')) {
-        return true;
-      }
-    }
-    const savedMode = localStorage.getItem('saffa_is_live_mode');
-    if (savedMode !== null) {
-      return savedMode === 'true';
-    }
-    return true; // Default to Online (Live) so user reports are sent online!
-  });
+  // Google Sheets Web App URL integration - DIKUNCI KE URL SHEET RESMI
+  const [webAppUrl, setWebAppUrl] = useState<string>(DEFAULT_WEB_APP_URL);
+  const [isLiveMode, setIsLiveMode] = useState<boolean>(true);
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
 
@@ -3016,97 +2988,42 @@ function deleteData(rowId) {
                         </span>
                       )}
                     </div>
-                  </div>
-
-                  <div className="mt-4 pt-4 border-t border-white/60 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                               <div className="mt-4 pt-4 border-t border-white/60 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                     <div className="md:col-span-8">
                       <div className="flex justify-between items-center mb-1">
                         <label className="block text-[10px] uppercase font-bold text-gray-500 tracking-wider">
-                          Google Apps Script Web App URL
+                          Google Apps Script Web App URL (Terkunci)
                         </label>
-                        {webAppUrl !== DEFAULT_WEB_APP_URL && (
-                          <button
-                            type="button"
-                            onClick={() => {
-                              setWebAppUrl(DEFAULT_WEB_APP_URL);
-                              localStorage.setItem('saffa_web_app_url', DEFAULT_WEB_APP_URL);
-                              triggerToast('URL berhasil diatur ulang ke default sistem.', 'success');
-                            }}
-                            className="text-[10px] text-[#e90076] hover:underline font-bold bg-transparent border-0 cursor-pointer p-0"
-                          >
-                            Gunakan URL Bawaan
-                          </button>
-                        )}
+                        <span className="text-[10px] bg-pink-100 text-[#e90076] px-2 py-0.5 rounded-md font-bold uppercase tracking-wider">
+                          Utama / Aktif
+                        </span>
                       </div>
                       <input 
                         type="url"
                         value={webAppUrl}
-                        onChange={(e) => {
-                          const val = e.target.value.trim();
-                          setWebAppUrl(val);
-                          localStorage.setItem('saffa_web_app_url', val);
-                        }}
+                        readOnly
                         placeholder="https://script.google.com/macros/s/AKfyby.../exec"
-                        className="w-full px-3 py-2 bg-white/70 border border-gray-200 rounded-xl text-xs focus:outline-none focus:ring-2 focus:ring-[#78b928]/30 focus:border-transparent font-mono"
+                        className="w-full px-3 py-2 bg-gray-100/80 border border-gray-200 rounded-xl text-xs focus:outline-none font-mono text-gray-500 cursor-not-allowed"
                       />
                     </div>
                     
                     <div className="md:col-span-4 flex gap-2 h-9 self-end">
-                      <button
-                        onClick={() => {
-                          if (!webAppUrl) {
-                            triggerToast('Harap masukkan URL Web App Google Script terlebih dahulu!', 'error');
-                            return;
-                          }
-                          const nextMode = !isLiveMode;
-                          setIsLiveMode(nextMode);
-                          localStorage.setItem('saffa_is_live_mode', String(nextMode));
-                          if (nextMode) {
-                            fetchLiveTransactions(webAppUrl);
-                          } else {
-                            // Offline, reset to local transactions
-                            const localData = localStorage.getItem('saffa_react_data');
-                            if (localData) {
-                              setTransactions(JSON.parse(localData));
-                            } else {
-                              setTransactions(DEFAULT_TRANSACTIONS);
-                            }
-                            triggerToast('Beralih kembali ke mode penyimpanan lokal (offline).', 'success');
-                          }
-                        }}
-                        className={`flex-1 h-full px-3 rounded-xl text-xs font-bold transition-all flex items-center justify-center gap-1.5 cursor-pointer ${
-                          isLiveMode 
-                            ? 'bg-rose-500 hover:bg-rose-600 text-white shadow-sm' 
-                            : 'bg-saffa-green hover:bg-saffa-green-hover text-white shadow-sm shadow-green-100'
-                        }`}
-                      >
-                        {isLoadingLive ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : isLiveMode ? (
-                          <>
-                            <RefreshCw className="w-3.5 h-3.5" />
-                            Matikan Live
-                          </>
-                        ) : (
-                          <>
-                            <Database className="w-3.5 h-3.5" />
-                            Hubungkan Live
-                          </>
-                        )}
-                      </button>
+                      <div className="flex-1 h-full px-3 bg-green-500 text-white rounded-xl text-xs font-bold flex items-center justify-center gap-1.5 shadow-sm shadow-green-100 cursor-default">
+                        <Database className="w-3.5 h-3.5" />
+                        <span>Online Aktif</span>
+                      </div>
 
-                      {isLiveMode && (
-                        <button
-                          onClick={() => fetchLiveTransactions()}
-                          disabled={isLoadingLive}
-                          className="px-3 h-full bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm"
-                          title="Refresh Data dari Sheets"
-                        >
-                          <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLive ? 'animate-spin' : ''}`} />
-                        </button>
-                      )}
+                      <button
+                        onClick={() => fetchLiveTransactions()}
+                        disabled={isLoadingLive}
+                        className="px-3 h-full bg-white hover:bg-gray-100 border border-gray-200 text-gray-600 rounded-xl transition-all flex items-center justify-center cursor-pointer shadow-sm"
+                        title="Refresh Data dari Sheets"
+                      >
+                        <RefreshCw className={`w-3.5 h-3.5 ${isLoadingLive ? 'animate-spin' : ''}`} />
+                      </button>
                     </div>
                   </div>
+                </div>
                   
                   {/* SHAREABLE LOCKED LINK BLOCK */}
                   {webAppUrl && (
