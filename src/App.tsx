@@ -48,6 +48,12 @@ interface Transaction {
   belumBayarNama?: string;
 }
 
+interface DebtItem {
+  id: string;
+  nama: string;
+  nominal: number | '';
+}
+
 // Helper to generate simple alphanumeric transaction ID (Format: D1799C)
 const generateSimpleId = () => {
   const letters = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ';
@@ -153,7 +159,7 @@ export default function App() {
     if (savedMode !== null) {
       return savedMode === 'true';
     }
-    return false; // Default to Offline (Lokal) for a perfect first-time load and test-runner compatibility
+    return true; // Default to Online (Live) so user reports are sent online!
   });
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -290,7 +296,25 @@ export default function App() {
   const [qris, setQris] = useState<number | ''>('');
   const [belumBayar, setBelumBayar] = useState<number | ''>('');
   const [belumBayarNama, setBelumBayarNama] = useState<string>('');
+  const [debts, setDebts] = useState<DebtItem[]>([{ id: '1', nama: '', nominal: '' }]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Auto-calculate total belum bayar and formatted names from the multi-debts array
+  useEffect(() => {
+    const activeDebts = debts.filter(d => d.nama.trim() !== '' || d.nominal !== '');
+    const totalBB = activeDebts.reduce((sum, d) => sum + (Number(d.nominal) || 0), 0);
+    const namesBB = activeDebts
+      .map(d => {
+        const amt = Number(d.nominal) || 0;
+        const nominalStr = amt > 0 ? ` (Rp ${amt.toLocaleString('id-ID')})` : '';
+        return `${d.nama.trim()}${nominalStr}`;
+      })
+      .filter(str => str !== '')
+      .join(', ');
+
+    setBelumBayar(totalBB > 0 ? totalBB : '');
+    setBelumBayarNama(namesBB);
+  }, [debts]);
 
   // New States for Employee Flow and Dual-View Login
   const [loggedOutView, setLoggedOutView] = useState<'report' | 'login'>('report');
@@ -837,6 +861,7 @@ export default function App() {
           setQris('');
           setBelumBayar('');
           setBelumBayarNama('');
+          setDebts([{ id: '1', nama: '', nominal: '' }]);
           // Refresh data
           fetchLiveTransactions();
         } else {
@@ -877,6 +902,7 @@ export default function App() {
       setQris('');
       setBelumBayar('');
       setBelumBayarNama('');
+      setDebts([{ id: '1', nama: '', nominal: '' }]);
     }
   };
 
@@ -983,20 +1009,118 @@ export default function App() {
  * 
  * Hubungkan script ini ke Google Sheets.
  * Pastikan Sheet aktif Anda memiliki nama "Data Sheet" (atau sesuaikan di bawah).
- * Baris pertama (Header) harus berisi: ID, Tanggal, Outlet, Cash, QRIS, Total, Timestamp
+ * Baris pertama (Header) harus berisi: ID, Tanggal, Outlet, Cash, QRIS, Belum Bayar, Atas Nama, Total, Timestamp
  */
 
 const SHEET_NAME = "Data Sheet";
 
 /**
- * Berfungsi untuk menampilkan halaman utama Index.html
+ * Berfungsi untuk menampilkan halaman utama Index.html atau merespon request API (CORS)
  */
-function doGet() {
+function doGet(e) {
+  // Jika ada parameter action, berarti ini request API dari luar (misal React App)
+  if (e && e.parameter && e.parameter.action) {
+    try {
+      const action = e.parameter.action;
+      
+      if (action === "read") {
+        const data = getData();
+        return ContentService.createTextOutput(JSON.stringify(data))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      if (action === "version") {
+        const versionInfo = getVersionInfo();
+        return ContentService.createTextOutput(JSON.stringify(versionInfo))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      if (action === "add") {
+        const tanggal = e.parameter.tanggal;
+        const outlet = e.parameter.outlet;
+        const cash = Number(e.parameter.cash) || 0;
+        const qris = Number(e.parameter.qris) || 0;
+        const belumBayar = Number(e.parameter.belumBayar) || 0;
+        const belumBayarNama = e.parameter.belumBayarNama || "";
+        const result = addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama);
+        return ContentService.createTextOutput(JSON.stringify(result))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      if (action === "delete") {
+        const rowId = Number(e.parameter.rowId);
+        const result = deleteData(rowId);
+        return ContentService.createTextOutput(JSON.stringify(result))
+          .setMimeType(ContentService.MimeType.JSON);
+      }
+      
+      return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Action tidak dikenal" }))
+        .setMimeType(ContentService.MimeType.JSON);
+    } catch (err) {
+      return ContentService.createTextOutput(JSON.stringify({ success: false, error: err.message }))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+  }
+  
+  // Default: Tampilkan halaman Index.html
   return HtmlService.createTemplateFromFile('Index')
     .evaluate()
     .setTitle('Saffa Bubur Bayi - Dashboard Keuangan')
     .addMetaTag('viewport', 'width=device-width, initial-scale=1')
     .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+}
+
+/**
+ * Menangani request POST dari luar
+ */
+function doPost(e) {
+  try {
+    let params = {};
+    if (e && e.postData && e.postData.contents) {
+      try {
+        params = JSON.parse(e.postData.contents);
+      } catch (err) {
+        // Jika bukan JSON, parse parameter post biasa
+        params = e.parameter;
+      }
+    } else if (e) {
+      params = e.parameter;
+    }
+    
+    const action = params.action || (e.parameter ? e.parameter.action : undefined);
+    
+    if (action === "add") {
+      const tanggal = params.tanggal || (e.parameter ? e.parameter.tanggal : undefined);
+      const outlet = params.outlet || (e.parameter ? e.parameter.outlet : undefined);
+      const cash = Number(params.cash || (e.parameter ? e.parameter.cash : 0)) || 0;
+      const qris = Number(params.qris || (e.parameter ? e.parameter.qris : 0)) || 0;
+      const belumBayar = Number(params.belumBayar || (e.parameter ? e.parameter.belumBayar : 0)) || 0;
+      const belumBayarNama = params.belumBayarNama || (e.parameter ? e.parameter.belumBayarNama : "") || "";
+      
+      const result = addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (action === "delete") {
+      const rowId = Number(params.rowId || (e.parameter ? e.parameter.rowId : undefined));
+      const result = deleteData(rowId);
+      return ContentService.createTextOutput(JSON.stringify(result))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    if (action === "read") {
+      const data = getData();
+      return ContentService.createTextOutput(JSON.stringify(data))
+        .setMimeType(ContentService.MimeType.JSON);
+    }
+    
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: "Action POST tidak dikenal" }))
+      .setMimeType(ContentService.MimeType.JSON);
+  } catch (error) {
+    return ContentService.createTextOutput(JSON.stringify({ success: false, error: error.message }))
+      .setMimeType(ContentService.MimeType.JSON);
+  }
 }
 
 /**
@@ -1007,7 +1131,8 @@ function getSheet() {
   let sheet = ss.getSheetByName(SHEET_NAME);
   if (!sheet) {
     sheet = ss.insertSheet(SHEET_NAME);
-    sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
+    // Tulis header jika sheet baru dibuat
+    sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Belum Bayar", "Atas Nama", "Total", "Timestamp"]);
   }
   return sheet;
 }
@@ -1086,12 +1211,15 @@ function generateOpsi3Id(tanggalStr) {
 
 /**
  * Membaca semua data transaksi dari Google Sheets
+ * @returns {Array<Object>} List data transaksi
  */
 function getData() {
   try {
     const sheet = getSheet();
     const lastRow = sheet.getLastRow();
-    if (lastRow <= 1) return [];
+    if (lastRow <= 1) {
+      return []; // Hanya header atau kosong
+    }
     
     const numCols = sheet.getLastColumn();
     const range = sheet.getRange(2, 1, lastRow - 1, numCols);
@@ -1099,16 +1227,29 @@ function getData() {
     const firstVal = sheet.getRange(1, 1).getValue();
     const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
+    // Konversi baris ke bentuk JSON array agar mudah diolah di frontend
     return values.map((row, index) => {
       let id = "";
       let dateVal = null;
       let outlet = "";
       let cash = 0;
       let qris = 0;
+      let belumBayar = 0;
+      let belumBayarNama = "";
       let total = 0;
       let timestamp = "";
       
-      if (isNewFormat) {
+      if (numCols >= 9) {
+        id = row[0] ? String(row[0]) : "";
+        dateVal = row[1];
+        outlet = row[2];
+        cash = Number(row[3]) || 0;
+        qris = Number(row[4]) || 0;
+        belumBayar = Number(row[5]) || 0;
+        belumBayarNama = row[6] ? String(row[6]) : "";
+        total = Number(row[7]) || 0;
+        timestamp = row[8] ? String(row[8]) : "";
+      } else if (isNewFormat) {
         id = row[0] ? String(row[0]) : "";
         dateVal = row[1];
         outlet = row[2];
@@ -1132,18 +1273,20 @@ function getData() {
         const year = dateVal.getFullYear();
         const month = String(dateVal.getMonth() + 1).padStart(2, '0');
         const day = String(dateVal.getDate()).padStart(2, '0');
-        dateString = \`\${year}-\${month}-\${day}\`;
+        dateString = \`\${year}-\\ \${month}-\\ \${day}\`.replace(/\\s/g, '');
       } else {
         dateString = String(dateVal);
       }
       
       return {
-        rowId: index + 2,
+        rowId: index + 2, // Baris nyata di Google Sheets (dimulai dari indeks 2)
         id: id,
         tanggal: dateString,
         outlet: outlet,
         cash: cash,
         qris: qris,
+        belumBayar: belumBayar,
+        belumBayarNama: belumBayarNama,
         total: total,
         timestamp: timestamp
       };
@@ -1154,31 +1297,120 @@ function getData() {
 }
 
 /**
- * Menambahkan data transaksi baru ke Google Sheets
+ * Mendapatkan info versi terbaru dan catatan rilis (changelog) dari sheet Settings
  */
-function addData(tanggal, outlet, cash, qris) {
+function getVersionInfo() {
+  try {
+    const ss = SpreadsheetApp.getActiveSpreadsheet();
+    let sheet = ss.getSheetByName("Settings");
+    if (!sheet) {
+      sheet = ss.insertSheet("Settings");
+      sheet.appendRow(["Key", "Value"]);
+      sheet.appendRow(["dashboard_version", "1.1.0"]);
+      sheet.appendRow(["changelog", "Pembaruan sistem sinkronisasi otomatis, visualisasi bento-grid, dan perbaikan penanganan koneksi offline."]);
+    }
+    
+    const lastRow = sheet.getLastRow();
+    let version = "1.1.0";
+    let changelog = "Pembaruan sistem sinkronisasi otomatis, visualisasi bento-grid, dan perbaikan penanganan koneksi offline.";
+    
+    if (lastRow > 1) {
+      const values = sheet.getRange(2, 1, lastRow - 1, 2).getValues();
+      values.forEach(row => {
+        const key = String(row[0]).trim().toLowerCase();
+        const val = String(row[1]).trim();
+        if (key === "dashboard_version" || key === "version") {
+          version = val;
+        } else if (key === "changelog") {
+          changelog = val;
+        }
+      });
+    }
+    
+    return {
+      success: true,
+      latestVersion: version,
+      changelog: changelog
+    };
+  } catch (err) {
+    return {
+      success: false,
+      latestVersion: "1.1.0",
+      changelog: "Gagal memuat info versi dari Sheets: " + err.message
+    };
+  }
+}
+
+/**
+ * Menambahkan data transaksi baru ke Google Sheets
+ * @param {string} tanggal - Format YYYY-MM-DD
+ * @param {string} outlet - Nama outlet
+ * @param {number} cash - Nominal cash
+ * @param {number} qris - Nominal QRIS
+ * @param {number} belumBayar - Nominal belum bayar
+ * @param {string} belumBayarNama - Keterangan nama
+ * @returns {Object} Hasil transaksi yang berhasil disimpan
+ */
+function addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama) {
   try {
     const sheet = getSheet();
     const data = getData();
     
+    // Validasi double-input tingkat backend untuk memastikan integritas data
     const isDuplicate = data.some(item => item.tanggal === tanggal && item.outlet.toLowerCase() === outlet.toLowerCase());
     if (isDuplicate) {
-      throw new Error(\`Outlet \${outlet} sudah diinput untuk tanggal \${tanggal}!\`);
+      throw new Error(\`Outlet \${outlet} sudah diinput untuk tanggal \${tanggal}!\\ \`);
     }
     
     const cashVal = Number(cash) || 0;
     const qrisVal = Number(qris) || 0;
+    const belumBayarVal = Number(belumBayar) || 0;
+    const belumBayarNamaVal = belumBayarNama ? String(belumBayarNama).trim() : "";
     const totalVal = cashVal + qrisVal;
     const timestamp = new Date().toLocaleString("id-ID");
     const transactionId = generateOpsi3Id(tanggal);
     
-    const numCols = sheet.getLastColumn();
+    let numCols = sheet.getLastColumn();
     const firstVal = sheet.getRange(1, 1).getValue();
-    const isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
+    let isNewFormat = numCols >= 7 && firstVal && String(firstVal).trim().toUpperCase() === "ID";
     
-    if (isNewFormat) {
+    // Auto-migrate sheet dari 7 kolom ke 9 kolom
+    if (isNewFormat && numCols < 9) {
+      // Kolom awal: ID, Tanggal, Outlet, Cash, QRIS, Total, Timestamp
+      // Kita sisipkan "Belum Bayar" dan "Atas Nama" di kolom 6 & 7 (sebelum Total)
+      sheet.insertColumnsBefore(6, 2);
+      sheet.getRange(1, 6).setValue("Belum Bayar");
+      sheet.getRange(1, 7).setValue("Atas Nama");
+      
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        // Isi Kolom 6 (Belum Bayar) dengan 0
+        const bbRange = sheet.getRange(2, 6, lastRow - 1, 1);
+        const bbVals = [];
+        for (let i = 0; i < lastRow - 1; i++) {
+          bbVals.push([0]);
+        }
+        bbRange.setValues(bbVals);
+        
+        // Isi Kolom 7 (Atas Nama) dengan string kosong
+        const namaRange = sheet.getRange(2, 7, lastRow - 1, 1);
+        const namaVals = [];
+        for (let i = 0; i < lastRow - 1; i++) {
+          namaVals.push([""]);
+        }
+        namaRange.setValues(namaVals);
+      }
+      numCols = 9; // Perbarui jumlah kolom setelah migrasi
+    }
+    
+    if (numCols >= 9) {
+      // Tambahkan baris baru dengan format 9 kolom
+      sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, belumBayarVal, belumBayarNamaVal, totalVal, timestamp]);
+    } else if (isNewFormat) {
+      // Tambahkan baris baru dengan format 7 kolom jika belum termigrasi
       sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
     } else {
+      // Otomatis lakukan migrasi sheet lama ke format 9 kolom dengan menambahkan kolom ID di depan
       if (sheet.getLastRow() >= 1) {
         sheet.insertColumnBefore(1);
         sheet.getRange(1, 1).setValue("ID");
@@ -1191,16 +1423,39 @@ function addData(tanggal, outlet, cash, qris) {
           }
           idRange.setValues(idValues);
         }
-        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+        
+        // Sekarang lembar kerja sudah bermigrasi ke 7 kolom, mari migrasi ke 9 kolom
+        sheet.insertColumnsBefore(6, 2);
+        sheet.getRange(1, 6).setValue("Belum Bayar");
+        sheet.getRange(1, 7).setValue("Atas Nama");
+        const updatedLastRow = sheet.getLastRow();
+        if (updatedLastRow > 1) {
+          const bbRange = sheet.getRange(2, 6, updatedLastRow - 1, 1);
+          const bbVals = [];
+          for (let i = 0; i < updatedLastRow - 1; i++) {
+            bbVals.push([0]);
+          }
+          bbRange.setValues(bbVals);
+          
+          const namaRange = sheet.getRange(2, 7, updatedLastRow - 1, 1);
+          const namaVals = [];
+          for (let i = 0; i < updatedLastRow - 1; i++) {
+            namaVals.push([""]);
+          }
+          namaRange.setValues(namaVals);
+        }
+        
+        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, belumBayarVal, belumBayarNamaVal, totalVal, timestamp]);
       } else {
-        sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Total", "Timestamp"]);
-        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, totalVal, timestamp]);
+        // Lembar kerja kosong total
+        sheet.appendRow(["ID", "Tanggal", "Outlet", "Cash", "QRIS", "Belum Bayar", "Atas Nama", "Total", "Timestamp"]);
+        sheet.appendRow([transactionId, tanggal, outlet, cashVal, qrisVal, belumBayarVal, belumBayarNamaVal, totalVal, timestamp]);
       }
     }
     
     return {
       success: true,
-      message: \`Data untuk Outlet \${outlet} berhasil disimpan dengan ID \${transactionId}!\`
+      message: \`Data untuk Outlet \${outlet} berhasil disimpan dengan ID \${transactionId}!\\ \`
     };
   } catch (error) {
     throw new Error("Gagal menyimpan data: " + error.message);
@@ -1209,6 +1464,8 @@ function addData(tanggal, outlet, cash, qris) {
 
 /**
  * Menghapus transaksi berdasarkan nomor baris (rowId)
+ * @param {number} rowId - Baris yang akan dihapus
+ * @returns {Object} Status keberhasilan
  */
 function deleteData(rowId) {
   try {
@@ -1814,9 +2071,9 @@ function deleteData(rowId) {
                               <span className="text-xs font-extrabold">{formatRupiah(submittedTx.belumBayar)}</span>
                             </div>
                             {submittedTx.belumBayarNama && (
-                              <div className="flex justify-between items-center pb-2.5 border-b border-gray-200/50 text-rose-600">
+                              <div className="flex justify-between items-start pb-2.5 border-b border-gray-200/50 text-rose-600 gap-2">
                                 <span className="text-xs font-semibold">Atas Nama Siapa</span>
-                                <span className="text-xs font-extrabold">{submittedTx.belumBayarNama}</span>
+                                <span className="text-xs font-extrabold text-right max-w-[200px] break-words">{submittedTx.belumBayarNama}</span>
                               </div>
                             )}
                           </>
@@ -1973,57 +2230,97 @@ function deleteData(rowId) {
                           </div>
 
                           {/* Piutang / Belum Bayar Section */}
-                          <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-3xl space-y-3.5">
-                            <div className="text-[10px] uppercase font-black text-rose-600 tracking-wider flex items-center gap-1.5">
-                              <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
-                              <span>Transaksi Belum Bayar / Piutang (Opsional)</span>
+                          <div className="p-4 bg-rose-50/50 border border-rose-100 rounded-3xl space-y-3.5 animate-fade-in">
+                            <div className="flex items-center justify-between">
+                              <div className="text-[10px] uppercase font-black text-rose-600 tracking-wider flex items-center gap-1.5">
+                                <span className="w-2 h-2 rounded-full bg-rose-500 animate-pulse"></span>
+                                <span>Transaksi Belum Bayar / Piutang (Opsional)</span>
+                              </div>
+                              {belumBayar !== '' && (
+                                <span className="text-[10px] font-black text-rose-700 bg-rose-100 px-2.5 py-0.5 rounded-full">
+                                  Total: {formatRupiah(Number(belumBayar))}
+                                </span>
+                              )}
                             </div>
                             
-                            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                              <div>
-                                <div className="flex justify-between items-center mb-1">
-                                  <label htmlFor="belum-bayar-input" className="block text-[9px] uppercase font-bold text-gray-500">
-                                    Nominal Belum Bayar
-                                  </label>
-                                  {belumBayar !== '' && (
-                                    <span className="text-[10px] font-bold text-rose-600">
-                                      {formatRupiah(Number(belumBayar))}
-                                    </span>
-                                  )}
-                                </div>
-                                <div className="relative rounded-xl shadow-sm">
-                                  <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none text-gray-400 font-bold text-xs">
-                                    Rp
+                            <div className="space-y-3">
+                              {debts.map((debt, index) => (
+                                <div key={debt.id} className="grid grid-cols-12 gap-2 items-end bg-white/50 p-3 rounded-2xl border border-rose-100/50 relative group shadow-sm">
+                                  {/* Name Input */}
+                                  <div className="col-span-6">
+                                    <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">
+                                      Atas Nama Siapa
+                                    </label>
+                                    <input
+                                      type="text"
+                                      placeholder="Nama pelanggan..."
+                                      value={debt.nama}
+                                      onChange={(e) => {
+                                        const newDebts = [...debts];
+                                        newDebts[index].nama = e.target.value;
+                                        setDebts(newDebts);
+                                      }}
+                                      className="block w-full px-2.5 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all text-[11px] font-semibold"
+                                    />
                                   </div>
-                                  <input
-                                    type="number"
-                                    id="belum-bayar-input"
-                                    min="0"
-                                    placeholder="0"
-                                    value={belumBayar}
-                                    onChange={(e) => {
-                                      const val = e.target.value;
-                                      setBelumBayar(val === '' ? '' : Number(val));
-                                    }}
-                                    className="block w-full pl-9 pr-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all text-xs font-semibold"
-                                  />
-                                </div>
-                              </div>
 
-                              <div>
-                                <label htmlFor="belum-bayar-nama-input" className="block text-[9px] uppercase font-bold text-gray-500 mb-1">
-                                  Atas Nama Siapa
-                                </label>
-                                <input
-                                  type="text"
-                                  id="belum-bayar-nama-input"
-                                  placeholder="Nama pelanggan / keterangan..."
-                                  value={belumBayarNama}
-                                  onChange={(e) => setBelumBayarNama(e.target.value)}
-                                  className="block w-full px-3 py-2.5 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all text-xs font-semibold"
-                                />
-                              </div>
+                                  {/* Nominal Input */}
+                                  <div className="col-span-5">
+                                    <label className="block text-[8px] uppercase font-bold text-gray-400 mb-1">
+                                      Nominal Piutang
+                                    </label>
+                                    <div className="relative rounded-xl shadow-sm">
+                                      <div className="absolute inset-y-0 left-0 pl-2 flex items-center pointer-events-none text-gray-400 font-bold text-[10px]">
+                                        Rp
+                                      </div>
+                                      <input
+                                        type="number"
+                                        min="0"
+                                        placeholder="0"
+                                        value={debt.nominal}
+                                        onChange={(e) => {
+                                          const newDebts = [...debts];
+                                          const val = e.target.value;
+                                          newDebts[index].nominal = val === '' ? '' : Number(val);
+                                          setDebts(newDebts);
+                                        }}
+                                        className="block w-full pl-6 pr-1.5 py-2 bg-white border border-gray-200 rounded-xl focus:outline-none focus:ring-2 focus:ring-rose-500 focus:border-transparent transition-all text-[11px] font-semibold"
+                                      />
+                                    </div>
+                                  </div>
+
+                                  {/* Action Delete Button */}
+                                  <div className="col-span-1 flex items-center justify-center">
+                                    {debts.length > 1 ? (
+                                      <button
+                                        type="button"
+                                        onClick={() => {
+                                          setDebts(debts.filter(d => d.id !== debt.id));
+                                        }}
+                                        className="p-2 text-rose-500 hover:bg-rose-100 hover:text-rose-700 rounded-lg transition-all cursor-pointer border-0 bg-transparent flex items-center justify-center self-center"
+                                        title="Hapus orang ini"
+                                      >
+                                        <Trash2 className="w-4 h-4" />
+                                      </button>
+                                    ) : (
+                                      <div className="w-8 h-8"></div>
+                                    )}
+                                  </div>
+                                </div>
+                              ))}
                             </div>
+
+                            {/* Button to Add Person */}
+                            <button
+                              type="button"
+                              onClick={() => {
+                                setDebts([...debts, { id: Date.now().toString(), nama: '', nominal: '' }]);
+                              }}
+                              className="w-full py-2 border border-dashed border-rose-300 hover:border-rose-500 bg-white/60 hover:bg-rose-50/50 text-rose-600 hover:text-rose-700 text-[10px] font-black rounded-xl transition-all cursor-pointer flex items-center justify-center gap-1.5 uppercase tracking-wide"
+                            >
+                              <PlusCircle className="w-3.5 h-3.5" />
+                              Tambah Orang Berutang
+                            </button>
                           </div>
 
                           {/* Live calculation panel */}
@@ -2667,7 +2964,7 @@ function deleteData(rowId) {
                               <td className="px-6 py-4 whitespace-nowrap text-right font-mono text-rose-600 font-bold bg-rose-50/20">
                                 {item.belumBayar ? formatRupiah(item.belumBayar) : '-'}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap font-semibold text-rose-700 text-xs bg-rose-50/20">
+                              <td className="px-6 py-4 font-semibold text-rose-700 text-xs bg-rose-50/20 max-w-xs truncate" title={item.belumBayarNama || undefined}>
                                 {item.belumBayarNama || '-'}
                               </td>
                               <td className="px-6 py-4 whitespace-nowrap text-right font-bold font-mono text-saffa-pink">
