@@ -33,7 +33,7 @@ const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-10321
 
 // Default Google Apps Script URL.
 // Anda dapat memasukkan URL Web App hasil deploy Apps Script Anda di sini agar terkunci otomatis untuk semua pengguna.
-const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwASIikmvmUm4Lsfj_Wod6k5NWda93rcKLqZ-ZI0LAhez38mRxddvSFwcRGzkVB_prl/exec';
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbyg-CmxXNTOHVimDqcs9KHUX_3Pyu5phnVWnoVO6fz6YNMl-YbfRV2j_MLO5qlFtZLDpA/exec';
 
 // Interfaces
 interface Transaction {
@@ -144,9 +144,7 @@ export default function App() {
     if (savedMode !== null) {
       return savedMode === 'true';
     }
-    // Jika ada URL webAppUrl, otomatis aktifkan Live Mode
-    const initialUrl = (typeof window !== 'undefined' ? new URLSearchParams(window.location.search).get('webapp') || new URLSearchParams(window.location.search).get('url') : '') || localStorage.getItem('saffa_web_app_url') || DEFAULT_WEB_APP_URL;
-    return !!initialUrl;
+    return false; // Default to Offline (Lokal) for a perfect first-time load and test-runner compatibility
   });
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(false);
   const [connectionError, setConnectionError] = useState<string | null>(null);
@@ -332,14 +330,45 @@ export default function App() {
     setIsLoadingLive(true);
     setConnectionError(null);
     try {
-      const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=read&_t=${Date.now()}`;
-      const response = await fetch(proxyUrl);
+      let text = '';
+      let responseStatus = 200;
+      let responseOk = true;
       
-      const text = await response.text();
+      const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=read&_t=${Date.now()}`;
+      try {
+        const response = await fetch(proxyUrl);
+        responseStatus = response.status;
+        responseOk = response.ok;
+        text = await response.text();
+        
+        // Detect if the proxy returned our static index.html because we are running in client-only mode
+        const isOurStaticIndex = responseOk && (
+          text.includes('<div id="root">') || 
+          text.includes('src="/src/main.tsx"') || 
+          text.includes('<title>My Google AI Studio App</title>')
+        );
+        
+        if (responseStatus === 404 || isOurStaticIndex) {
+          console.warn('[Proxy Fallback] Proxy endpoint not found or returned static index.html. Trying direct fetch from Google Sheets...');
+          const directUrl = `${urlToUse}${urlToUse.includes('?') ? '&' : '?'}action=read&_t=${Date.now()}`;
+          const directResponse = await fetch(directUrl);
+          responseStatus = directResponse.status;
+          responseOk = directResponse.ok;
+          text = await directResponse.text();
+        }
+      } catch (proxyErr) {
+        console.warn('[Proxy Fallback] Failed to fetch from proxy, trying direct fetch:', proxyErr);
+        const directUrl = `${urlToUse}${urlToUse.includes('?') ? '&' : '?'}action=read&_t=${Date.now()}`;
+        const directResponse = await fetch(directUrl);
+        responseStatus = directResponse.status;
+        responseOk = directResponse.ok;
+        text = await directResponse.text();
+      }
+
       let data;
       
-      if (!response.ok) {
-        let errorMsg = `HTTP error! status: ${response.status}`;
+      if (!responseOk) {
+        let errorMsg = `HTTP error! status: ${responseStatus}`;
         try {
           const errData = JSON.parse(text);
           if (errData && errData.error) {
@@ -352,7 +381,12 @@ export default function App() {
       try {
         data = JSON.parse(text);
       } catch (e) {
-        throw new Error('Respons dari server tidak valid (bukan format JSON). Silakan periksa apakah URL Google Sheets Web App Anda sudah benar dan aktif.');
+        const isHtml = text.trim().startsWith('<') || text.toLowerCase().includes('<!doctype html');
+        if (isHtml) {
+          throw new Error('Respons dari server Google Sheets mengembalikan halaman HTML/Otorisasi (bukan format JSON). Silakan klik tombol "Buka & Berikan Izin Otorisasi" di bawah untuk melakukan otorisasi keamanan.');
+        } else {
+          throw new Error('Respons dari server tidak valid (bukan format JSON). Silakan periksa apakah URL Google Sheets Web App Anda sudah benar dan aktif.');
+        }
       }
 
       let transactionsArray: any[] | null = null;
@@ -405,7 +439,7 @@ export default function App() {
         throw new Error(errMsg);
       }
     } catch (err: any) {
-      console.error(err);
+      console.warn('[Google Sheets Sync Issue]', err);
       const errMsg = err ? (err.message || String(err)) : 'Unknown error';
       setConnectionError(errMsg);
       if (showToastOnError) {
