@@ -1177,7 +1177,7 @@
             <td class="px-6 py-4 whitespace-nowrap text-right font-mono text-gray-600 text-xs">${belumBayarText}</td>
             <td class="px-6 py-4 whitespace-nowrap text-right font-semibold font-mono text-saffa-pink">${formatRupiah(item.total)}</td>
             <td class="px-6 py-4 whitespace-nowrap text-center">
-              <button onclick="handleDelete(${item.rowId}, '${item.outlet}', '${item.tanggal}')"
+              <button onclick="handleDelete(${item.rowId}, '${item.id || ""}', '${item.outlet}', '${item.tanggal}')"
                 class="p-2 bg-red-50 hover:bg-red-100 text-red-600 rounded-xl transition-all inline-flex items-center justify-center cursor-pointer hover:shadow-sm" 
                 title="Hapus data">
                 <i data-lucide="trash-2" class="w-4 h-4"></i>
@@ -1191,7 +1191,7 @@
       lucide.createIcons();
     }
 
-    function handleDelete(rowId, outlet, tanggal) {
+    function handleDelete(rowId, id, outlet, tanggal) {
       const isConfirmed = confirm(`Apakah Anda yakin ingin menghapus data keuangan outlet ${outlet} tanggal ${tanggal}?`);
       if (!isConfirmed) return;
 
@@ -1206,7 +1206,7 @@
           .withFailureHandler((error) => {
             showToast("Gagal menghapus data: " + error.message, "error");
           })
-          .deleteData(rowId);
+          .deleteData(rowId, id);
       } else {
         // Mode Simulasi Offline
         setTimeout(() => {

@@ -43,8 +43,9 @@ function doGet(e) {
       }
       
       if (action === "delete") {
-        const rowId = Number(e.parameter.rowId);
-        const result = deleteData(rowId);
+        const rowId = e.parameter.rowId ? Number(e.parameter.rowId) : undefined;
+        const id = e.parameter.id || "";
+        const result = deleteData(rowId, id);
         return ContentService.createTextOutput(JSON.stringify(result))
           .setMimeType(ContentService.MimeType.JSON);
       }
@@ -98,8 +99,9 @@ function doPost(e) {
     }
     
     if (action === "delete") {
-      const rowId = Number(params.rowId || (e.parameter ? e.parameter.rowId : undefined));
-      const result = deleteData(rowId);
+      const rowId = params.rowId || (e.parameter ? e.parameter.rowId : undefined);
+      const id = params.id || (e.parameter ? e.parameter.id : "") || "";
+      const result = deleteData(rowId ? Number(rowId) : undefined, id);
       return ContentService.createTextOutput(JSON.stringify(result))
         .setMimeType(ContentService.MimeType.JSON);
     }
@@ -458,23 +460,39 @@ function addData(tanggal, outlet, cash, qris, belumBayar, belumBayarNama) {
 }
 
 /**
- * Menghapus transaksi berdasarkan nomor baris (rowId)
- * @param {number} rowId - Baris yang akan dihapus
+ * Menghapus transaksi berdasarkan nomor baris (rowId) atau ID transaksi (id)
+ * @param {number} [rowId] - Baris yang akan dihapus
+ * @param {string} [id] - ID transaksi yang akan dicocokkan di kolom pertama (ID)
  * @returns {Object} Status keberhasilan
  */
-function deleteData(rowId) {
+function deleteData(rowId, id) {
   try {
     const sheet = getSheet();
-    const targetRow = Number(rowId);
+    let targetRow = rowId ? Number(rowId) : NaN;
+    const idToMatch = id ? String(id).trim() : "";
+    
+    // Jika ada ID transaksi, cari baris yang sesuai dengan ID tersebut terlebih dahulu demi keamanan & akurasi
+    if (idToMatch) {
+      const lastRow = sheet.getLastRow();
+      if (lastRow > 1) {
+        const ids = sheet.getRange(2, 1, lastRow - 1, 1).getValues();
+        for (let i = 0; i < ids.length; i++) {
+          if (String(ids[i][0]).trim() === idToMatch) {
+            targetRow = i + 2; // Baris ditemukan
+            break;
+          }
+        }
+      }
+    }
     
     if (isNaN(targetRow) || targetRow < 2) {
-      throw new Error("Row ID tidak valid.");
+      throw new Error("ID Transaksi atau Nomor Baris tidak ditemukan atau tidak valid.");
     }
     
     sheet.deleteRow(targetRow);
     return {
       success: true,
-      message: "Data berhasil dihapus!"
+      message: "Data berhasil dihapus dari Google Sheets!"
     };
   } catch (error) {
     throw new Error("Gagal menghapus data: " + error.message);
