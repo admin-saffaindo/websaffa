@@ -32,7 +32,7 @@ const LOGO_URL = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-10321
 
 // Default Google Apps Script URL.
 // Anda dapat memasukkan URL Web App hasil deploy Apps Script Anda di sini agar terkunci otomatis untuk semua pengguna.
-const DEFAULT_WEB_APP_URL = '';
+const DEFAULT_WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbwASIikmvmUm4Lsfj_Wod6k5NWda93rcKLqZ-ZI0LAhez38mRxddvSFwcRGzkVB_prl/exec';
 
 // Interfaces
 interface Transaction {
@@ -368,10 +368,11 @@ export default function App() {
       }
     } catch (err: any) {
       console.error(err);
-      if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('fetch') || err.message.includes('NetworkError'))) {
+      const errMsg = err ? (err.message || String(err)) : 'Unknown error';
+      if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('NetworkError')) {
         triggerToast('Koneksi gagal! Pastikan internet Anda aktif, URL Google Sheets Web App benar, dan izin aksesnya telah diatur ke "Anyone" (Siapa saja).', 'error');
       } else {
-        triggerToast('Gagal sinkronisasi data: ' + err.message, 'error');
+        triggerToast('Gagal sinkronisasi data: ' + errMsg, 'error');
       }
     } finally {
       setIsLoadingLive(false);
@@ -599,7 +600,7 @@ export default function App() {
   const isOutletLocked = outlet ? registeredOutletsForSelectedDate.includes(outlet) : false;
 
   // Form submission handler
-  const handleSaveTransaction = (e: React.FormEvent) => {
+  const handleSaveTransaction = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!tanggal) {
@@ -625,47 +626,50 @@ export default function App() {
 
     if (isLiveMode && webAppUrl) {
       setIsLoadingLive(true);
-      const url = `${webAppUrl}?action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`;
-      fetch(url)
-        .then(res => res.json())
-        .then(resData => {
-          if (resData.success) {
-            const generatedId = resData.id || generateSimpleId();
-            const newTx: Transaction = {
-              id: generatedId,
-              tanggal,
-              outlet,
-              cash: cashValue,
-              qris: qrisValue,
-              total: totalValue,
-              belumBayar: belumBayarValue,
-              belumBayarNama: belumBayarNamaValue,
-              timestamp: new Date().toLocaleString('id-ID')
-            };
-            setSubmittedTx(newTx);
-            triggerToast(resData.message || `Sukses menyimpan data untuk Outlet ${outlet}!`, 'success');
-            // Reset inputs on success
-            setOutlet('');
-            setCash('');
-            setQris('');
-            setBelumBayar('');
-            setBelumBayarNama('');
-            // Refresh data
-            fetchLiveTransactions();
-          } else {
-            triggerToast('Gagal menyimpan ke Google Sheets: ' + (resData.error || 'Terjadi kesalahan'), 'error');
-          }
-        })
-        .catch(err => {
-          if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('fetch') || err.message.includes('NetworkError'))) {
-            triggerToast('Gagal menghubungi Google Sheets! Pastikan internet Anda aktif dan URL Web App benar dengan izin akses "Anyone".', 'error');
-          } else {
-            triggerToast('Gagal menghubungi Google Sheets: ' + err.message, 'error');
-          }
-        })
-        .finally(() => {
-          setIsLoadingLive(false);
-        });
+      try {
+        const url = `${webAppUrl}?action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const resData = await res.json();
+        if (resData.success) {
+          const generatedId = resData.id || generateSimpleId();
+          const newTx: Transaction = {
+            id: generatedId,
+            tanggal,
+            outlet,
+            cash: cashValue,
+            qris: qrisValue,
+            total: totalValue,
+            belumBayar: belumBayarValue,
+            belumBayarNama: belumBayarNamaValue,
+            timestamp: new Date().toLocaleString('id-ID')
+          };
+          setSubmittedTx(newTx);
+          triggerToast(resData.message || `Sukses menyimpan data untuk Outlet ${outlet}!`, 'success');
+          // Reset inputs on success
+          setOutlet('');
+          setCash('');
+          setQris('');
+          setBelumBayar('');
+          setBelumBayarNama('');
+          // Refresh data
+          fetchLiveTransactions();
+        } else {
+          triggerToast('Gagal menyimpan ke Google Sheets: ' + (resData.error || 'Terjadi kesalahan'), 'error');
+        }
+      } catch (err: any) {
+        console.error(err);
+        const errMsg = err ? (err.message || String(err)) : 'Unknown error';
+        if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('NetworkError')) {
+          triggerToast('Gagal menghubungi Google Sheets! Pastikan internet Anda aktif dan URL Web App benar dengan izin akses "Anyone".', 'error');
+        } else {
+          triggerToast('Gagal menghubungi Google Sheets: ' + errMsg, 'error');
+        }
+      } finally {
+        setIsLoadingLive(false);
+      }
     } else {
       const generatedId = generateOpsi3Id(tanggal, transactions);
       const newTx: Transaction = {
@@ -694,33 +698,36 @@ export default function App() {
   };
 
   // Delete Handler
-  const handleDeleteTransaction = (id: string, outletName: string, dateStr: string, rowId?: number) => {
+  const handleDeleteTransaction = async (id: string, outletName: string, dateStr: string, rowId?: number) => {
     const confirmDelete = window.confirm(`Apakah Anda yakin ingin menghapus data outlet ${outletName} pada tanggal ${parseAndFormatDate(dateStr)}?`);
     if (!confirmDelete) return;
 
     if (isLiveMode && webAppUrl && rowId) {
       setIsLoadingLive(true);
-      const url = `${webAppUrl}?action=delete&rowId=${rowId}&_t=${Date.now()}`;
-      fetch(url)
-        .then(res => res.json())
-        .then(resData => {
-          if (resData.success) {
-            triggerToast(resData.message || 'Data berhasil dihapus dari Google Sheets!', 'success');
-            fetchLiveTransactions();
-          } else {
-            triggerToast('Gagal menghapus dari Google Sheets: ' + (resData.error || 'Terjadi kesalahan'), 'error');
-          }
-        })
-        .catch(err => {
-          if (err.message && (err.message.includes('Failed to fetch') || err.message.includes('fetch') || err.message.includes('NetworkError'))) {
-            triggerToast('Gagal menghubungi Google Sheets! Pastikan internet Anda aktif dan URL Web App benar dengan izin akses "Anyone".', 'error');
-          } else {
-            triggerToast('Gagal menghubungi Google Sheets: ' + err.message, 'error');
-          }
-        })
-        .finally(() => {
-          setIsLoadingLive(false);
-        });
+      try {
+        const url = `${webAppUrl}?action=delete&rowId=${rowId}&_t=${Date.now()}`;
+        const res = await fetch(url);
+        if (!res.ok) {
+          throw new Error(`HTTP error! status: ${res.status}`);
+        }
+        const resData = await res.json();
+        if (resData.success) {
+          triggerToast(resData.message || 'Data berhasil dihapus dari Google Sheets!', 'success');
+          fetchLiveTransactions();
+        } else {
+          triggerToast('Gagal menghapus dari Google Sheets: ' + (resData.error || 'Terjadi kesalahan'), 'error');
+        }
+      } catch (err: any) {
+        console.error(err);
+        const errMsg = err ? (err.message || String(err)) : 'Unknown error';
+        if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('NetworkError')) {
+          triggerToast('Gagal menghubungi Google Sheets! Pastikan internet Anda aktif dan URL Web App benar dengan izin akses "Anyone".', 'error');
+        } else {
+          triggerToast('Gagal menghubungi Google Sheets: ' + errMsg, 'error');
+        }
+      } finally {
+        setIsLoadingLive(false);
+      }
     } else {
       setTransactions(prev => prev.filter(t => t.id !== id));
       triggerToast(`Data ${outletName} berhasil dihapus!`, 'success');
