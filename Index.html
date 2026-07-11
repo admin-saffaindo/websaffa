@@ -19,6 +19,10 @@
   <!-- Lucide Icons for beautiful dashboard look -->
   <script src="https://unpkg.com/lucide@latest"></script>
 
+  <!-- jsPDF CDN for exporting reports to PDF -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.29/jspdf.plugin.autotable.min.js"></script>
+
   <script>
     tailwind.config = {
       theme: {
@@ -398,10 +402,21 @@
                 </div>
               </div>
 
-              <!-- Period Description Banner -->
-              <div class="text-xs text-gray-600 font-semibold mb-3 flex items-center gap-2">
-                <span class="px-2 py-0.5 bg-pink-100 text-saffa-pink rounded-lg text-[9px] font-bold uppercase tracking-wide">Periode Aktif</span>
-                <span id="chartPeriodDescription">Tanggal -</span>
+              <!-- Period Description Banner & PDF Export Button -->
+              <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 mb-4 bg-white/40 backdrop-blur-md p-3 rounded-2xl border border-white/60">
+                <div class="text-xs text-gray-600 font-semibold flex items-center gap-2">
+                  <span class="px-2 py-0.5 bg-pink-100 text-saffa-pink rounded-lg text-[9px] font-bold uppercase tracking-wide">Periode Aktif</span>
+                  <span id="chartPeriodDescription">Tanggal -</span>
+                </div>
+                
+                <button
+                  type="button"
+                  onclick="handleExportPDF()"
+                  class="px-4 py-2 bg-gradient-to-r from-saffa-pink to-pink-600 hover:from-saffa-pink-hover hover:to-pink-700 text-white font-bold rounded-xl shadow-md shadow-pink-500/10 active:scale-[0.98] transition-all flex items-center justify-center gap-2 text-xs cursor-pointer w-full sm:w-auto"
+                >
+                  <i data-lucide="file-down" class="w-4 h-4"></i>
+                  Cetak Laporan PDF
+                </button>
               </div>
 
               <!-- CHART CANVAS WRAPPER -->
@@ -783,6 +798,401 @@
       const d = new Date(dateStr);
       if (isNaN(d.getTime())) return '';
       return d.toLocaleDateString('id-ID', { month: 'long', year: 'numeric' });
+    }
+
+    // Helper to format input time from timestamp (e.g., "17:15")
+    function formatInputTime(timestampStr) {
+      if (!timestampStr) return '-';
+      var match = timestampStr.match(/(\d{1,2})[:.](\d{2})(?:[:.](\d{2}))?/);
+      if (match) {
+        var hh = match[1].padStart(2, '0');
+        var mm = match[2];
+        return hh + ':' + mm;
+      }
+      try {
+        var parsed = new Date(timestampStr);
+        if (!isNaN(parsed.getTime())) {
+          var hh = String(parsed.getHours()).padStart(2, '0');
+          var mm = String(parsed.getMinutes()).padStart(2, '0');
+          return hh + ':' + mm;
+        }
+      } catch (e) {
+        // ignore
+      }
+      return timestampStr;
+    }
+
+    function formatDateIndoShort(dateStr) {
+      const d = new Date(dateStr);
+      if (isNaN(d.getTime())) return dateStr;
+      return d.toLocaleDateString('id-ID', { day: 'numeric', month: 'short' });
+    }
+
+    async function handleExportPDF() {
+      try {
+        if (!window.jspdf) {
+          throw new Error("Pustaka PDF (jsPDF) belum terpasang dengan benar. Mohon tunggu beberapa saat atau periksa koneksi internet Anda.");
+        }
+        
+        const { jsPDF } = window.jspdf;
+        
+        let title = '';
+        let periodLabel = '';
+        let filtered = [];
+
+        // Filter transactions exactly matching the active view
+        if (chartView === 'outlet') {
+          title = 'LAPORAN OMSET HARIAN';
+          periodLabel = formatDateIndo(chartDate);
+          filtered = dbData.filter(function(t) { return t.tanggal === chartDate; });
+        } else if (chartView === 'weekly') {
+          title = 'LAPORAN OMSET MINGGUAN';
+          periodLabel = getWeekRangeIndo(chartDate);
+          
+          const d = new Date(chartDate);
+          const day = d.getDay();
+          const diff = d.getDate() - day + (day === 0 ? -6 : 1);
+          const monday = new Date(d.setDate(diff));
+          const sunday = new Date(monday);
+          sunday.setDate(monday.getDate() + 6);
+          
+          const mondayStr = formatDateISO(monday);
+          const sundayStr = formatDateISO(sunday);
+          filtered = dbData.filter(function(t) { return t.tanggal >= mondayStr && t.tanggal <= sundayStr; });
+        } else {
+          title = 'LAPORAN OMSET BULANAN';
+          periodLabel = getMonthYearIndo(chartDate);
+          const monthPrefix = chartDate.substring(0, 7);
+          filtered = dbData.filter(function(t) { return t.tanggal.indexOf(monthPrefix) === 0; });
+        }
+
+        // Calculate totals
+        const totalCash = filtered.reduce(function(s, t) { return s + t.cash; }, 0);
+        const totalQris = filtered.reduce(function(s, t) { return s + t.qris; }, 0);
+        const grandTotal = totalCash + totalQris;
+
+        // Initialize jsPDF (Portrait, A4 size in mm)
+        const doc = new jsPDF({
+          orientation: 'portrait',
+          unit: 'mm',
+          format: 'a4'
+        });
+
+        // Load Saffa Logo
+        const logoUrl = 'https://i.ibb.co.com/XvTydSC/LOGO-SAFFA-FIX-1-2-20240228-103210-0000.png';
+        let imgElement = null;
+        if (logoUrl) {
+          try {
+            imgElement = await new Promise(function(resolve, reject) {
+              const img = new Image();
+              img.crossOrigin = 'anonymous';
+              img.onload = function() { resolve(img); };
+              img.onerror = function(e) { reject(e); };
+              img.src = logoUrl;
+            });
+          } catch (e) {
+            console.error('Gagal memuat logo Saffa, menggunakan badge vektor bawaan:', e);
+          }
+        }
+
+        // --- DRAW BRAND HEADER ---
+        // Top green accent bar
+        doc.setFillColor(120, 185, 40); // Saffa Green (#78b928)
+        doc.rect(0, 0, 210, 4, 'F');
+
+        let textStartX = 28;
+        if (imgElement) {
+          // Draw Saffa logo (larger size 16x16)
+          doc.addImage(imgElement, 'PNG', 15, 7, 16, 16);
+          textStartX = 35;
+        } else {
+          // Saffa logo badge (vector emblem fallback)
+          doc.setFillColor(120, 185, 40); // Saffa Green
+          doc.roundedRect(15, 10, 10, 10, 2, 2, 'F');
+
+          // White "S" inside the green emblem
+          doc.setTextColor(255, 255, 255);
+          doc.setFont('helvetica', 'bold');
+          doc.setFontSize(8);
+          doc.text('S', 19, 17);
+          textStartX = 28;
+        }
+
+        // "SAFFA ID" brand name
+        doc.setTextColor(33, 41, 54); // Dark slate
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.text('SAFFA ID', textStartX, 17);
+
+        // Slogan/Label below brand text
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7.5);
+        doc.setTextColor(115, 128, 142); // Gray
+        doc.text('Sistem Informasi Omset & Transaksi', textStartX, 22);
+
+        // Document Title & Metadata on the Right
+        doc.setTextColor(33, 41, 54);
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(12);
+        doc.text(title, 195, 15, { align: 'right' });
+
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        doc.setTextColor(115, 128, 142);
+        doc.text('Periode: ' + periodLabel, 195, 20, { align: 'right' });
+        doc.text('Dicetak: ' + new Date().toLocaleString('id-ID'), 195, 24, { align: 'right' });
+
+        // Divider Line
+        doc.setDrawColor(220, 225, 230);
+        doc.setLineWidth(0.5);
+        doc.line(15, 28, 195, 28);
+
+        // --- REPORT METADATA BOX ---
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(8);
+        doc.setTextColor(115, 128, 142);
+        doc.text('INFORMASI LAPORAN', 15, 34);
+
+        doc.setFont('helvetica', 'normal');
+        doc.setTextColor(70, 80, 95);
+        doc.text('Tipe Laporan : ' + (chartView === 'outlet' ? 'Harian (Per Hari)' : chartView === 'weekly' ? 'Mingguan (Per Minggu)' : 'Bulanan (Per Bulan)'), 15, 39);
+        doc.text('Total Transaksi: ' + filtered.length + ' Transaksi', 15, 43);
+        
+        doc.text('Operator     : saffaindo@gmail.com', 110, 39);
+        doc.text('Sumber Data  : Google Sheets (Live Sync)', 110, 43);
+
+        // --- FINANCIAL SUMMARY CARDS (using an autoTable for clean layout) ---
+        doc.autoTable({
+          startY: 48,
+          margin: { left: 15, right: 15 },
+          theme: 'plain',
+          styles: {
+            cellPadding: 4,
+            fontSize: 8.5,
+            font: 'helvetica'
+          },
+          columnStyles: {
+            0: { cellWidth: 55 },
+            1: { cellWidth: 55 },
+            2: { cellWidth: 70 }
+          },
+          body: [
+            [
+              {
+                content: 'TOTAL CASH\n\n' + formatRupiah(totalCash),
+                styles: {
+                  halign: 'center',
+                  fontStyle: 'bold',
+                  textColor: [33, 41, 54],
+                  fillColor: [243, 244, 246],
+                  lineWidth: 0.5,
+                  lineColor: [229, 231, 235]
+                }
+              },
+              {
+                content: 'TOTAL QRIS\n\n' + formatRupiah(totalQris),
+                styles: {
+                  halign: 'center',
+                  fontStyle: 'bold',
+                  textColor: [233, 0, 118], // Saffa Pink (#e90076)
+                  fillColor: [253, 242, 248], // Light pink bg
+                  lineWidth: 0.5,
+                  lineColor: [251, 207, 232]
+                }
+              },
+              {
+                content: 'TOTAL OMSET KESELURUHAN\n\n' + formatRupiah(grandTotal),
+                styles: {
+                  halign: 'center',
+                  fontStyle: 'bold',
+                  textColor: [255, 255, 255],
+                  fillColor: [120, 185, 40], // Saffa Green (#78b928)
+                  lineWidth: 0.5,
+                  lineColor: [100, 160, 30]
+                }
+              }
+            ]
+          ]
+        });
+
+        // --- OUTLET TURNOVER SUMMARY TABLE ---
+        const activeOutletRows = [];
+        let globalIdx = 1;
+
+        OUTLETS_DATA.forEach(function(reg) {
+          // Add region category row
+          activeOutletRows.push([
+            {
+              content: reg.region.toUpperCase(),
+              colSpan: 6,
+              styles: {
+                fillColor: [240, 244, 248],
+                textColor: [33, 41, 54],
+                fontStyle: 'bold',
+                fontSize: 8,
+                halign: 'left',
+                cellPadding: 2.5
+              }
+            }
+          ]);
+
+          // Calculate data for outlets in this region
+          const regionOutletsData = reg.items.map(function(o) {
+            const oTrans = filtered.filter(function(t) { return t.outlet === o; });
+            const cashSum = oTrans.reduce(function(s, t) { return s + t.cash; }, 0);
+            const qrisSum = oTrans.reduce(function(s, t) { return s + t.qris; }, 0);
+            const totalSum = cashSum + qrisSum;
+            const contrib = grandTotal > 0 ? (totalSum / grandTotal) * 100 : 0;
+            return { name: o, cash: cashSum, qris: qrisSum, total: totalSum, contrib: contrib };
+          });
+
+          // Sort outlets inside the region by total sales descending
+          const sortedRegOutlets = [].concat(regionOutletsData).sort(function(a, b) { return b.total - a.total; });
+
+          // Append to table rows
+          sortedRegOutlets.forEach(function(o) {
+            activeOutletRows.push([
+              globalIdx++,
+              o.name,
+              formatRupiah(o.cash),
+              formatRupiah(o.qris),
+              formatRupiah(o.total),
+              o.contrib.toFixed(1) + '%'
+            ]);
+          });
+        });
+
+        const summaryY = doc.lastAutoTable.finalY || 70;
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(33, 41, 54);
+        doc.text('RINGKASAN OMSET PER OUTLET', 15, summaryY + 8);
+
+        doc.autoTable({
+          startY: summaryY + 11,
+          margin: { left: 15, right: 15 },
+          head: [['No', 'Nama Outlet', 'Omset Cash', 'Omset QRIS', 'Total Omset', 'Kontribusi']],
+          body: activeOutletRows,
+          theme: 'striped',
+          headStyles: {
+            fillColor: [33, 41, 54], // Dark slate header
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8,
+            halign: 'left'
+          },
+          bodyStyles: {
+            fontSize: 7.5,
+            textColor: [50, 50, 50]
+          },
+          columnStyles: {
+            0: { cellWidth: 10, halign: 'center' },
+            1: { cellWidth: 50, fontStyle: 'bold' },
+            2: { cellWidth: 30, halign: 'right' },
+            3: { cellWidth: 30, halign: 'right' },
+            4: { cellWidth: 35, halign: 'right', fontStyle: 'bold' },
+            5: { cellWidth: 25, halign: 'center' }
+          },
+          foot: [
+            [
+              '',
+              'TOTAL KESELURUHAN',
+              formatRupiah(totalCash),
+              formatRupiah(totalQris),
+              formatRupiah(grandTotal),
+              '100.0%'
+            ]
+          ],
+          footStyles: {
+            fillColor: [243, 244, 246],
+            textColor: [33, 41, 54],
+            fontStyle: 'bold',
+            fontSize: 8,
+            halign: 'right'
+          }
+        });
+
+        // --- DETAILED TRANSACTIONS TABLE ---
+        const outletY = doc.lastAutoTable.finalY || (summaryY + 50);
+
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(9.5);
+        doc.setTextColor(33, 41, 54);
+        doc.text('DAFTAR TRANSAKSI RINCI', 15, outletY + 8);
+
+        const txRows = filtered.map(function(t, idx) {
+          return [
+            idx + 1,
+            t.id,
+            formatDateIndoShort(t.tanggal),
+            formatInputTime(t.timestamp),
+            t.outlet,
+            formatRupiah(t.cash),
+            formatRupiah(t.qris),
+            t.belumBayar ? formatRupiah(t.belumBayar) : '-',
+            t.belumBayarNama || '-',
+            formatRupiah(t.total)
+          ];
+        });
+
+        doc.autoTable({
+          startY: outletY + 11,
+          margin: { left: 15, right: 15 },
+          head: [['No', 'ID Transaksi', 'Tanggal', 'Jam Input', 'Outlet', 'Cash', 'QRIS', 'Blm Bayar', 'Atas Nama', 'Total']],
+          body: txRows.length > 0 ? txRows : [['-', 'Tidak ada transaksi', '-', '-', '-', '-', '-', '-', '-', '-']],
+          theme: 'striped',
+          headStyles: {
+            fillColor: [120, 185, 40], // Saffa Green header
+            textColor: [255, 255, 255],
+            fontStyle: 'bold',
+            fontSize: 8,
+            halign: 'left'
+          },
+          bodyStyles: {
+            fontSize: 7.2,
+            textColor: [70, 70, 70]
+          },
+          columnStyles: {
+            0: { cellWidth: 8, halign: 'center' },
+            1: { cellWidth: 20, halign: 'center', fontStyle: 'bold' },
+            2: { cellWidth: 15 },
+            3: { cellWidth: 15, halign: 'center' },
+            4: { cellWidth: 25 },
+            5: { cellWidth: 20, halign: 'right' },
+            6: { cellWidth: 20, halign: 'right' },
+            7: { cellWidth: 20, halign: 'right' }, // Blm Bayar
+            8: { cellWidth: 17 }, // Atas Nama
+            9: { cellWidth: 20, halign: 'right', fontStyle: 'bold' }
+          }
+        });
+
+        // --- FOOTER AND PAGE NUMBERS ---
+        const pageCount = doc.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+          doc.setPage(i);
+          
+          // Footer text
+          doc.setFont('helvetica', 'normal');
+          doc.setFontSize(7);
+          doc.setTextColor(150, 150, 150);
+          
+          // Footer divider line
+          doc.setDrawColor(240, 240, 240);
+          doc.line(15, 282, 195, 282);
+          
+          doc.text('Dokumen ini digenerate secara otomatis dari Aplikasi Omset Saffa ID.', 15, 287);
+          doc.text('Halaman ' + i + ' dari ' + pageCount, 195, 287, { align: 'right' });
+        }
+
+        // Save the PDF locally
+        const safeLabel = periodLabel.replace(/[\s\/:,\.\(\)]+/g, '_');
+        doc.save('Laporan_Omset_Saffa_' + chartView + '_' + safeLabel + '.pdf');
+        showToast("Laporan PDF berhasil diunduh!", "success");
+      } catch (error) {
+        console.error(error);
+        showToast("Gagal mencetak PDF: " + error.message, "error");
+      }
     }
 
     function setChartView(view) {
