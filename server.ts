@@ -97,9 +97,10 @@ async function startServer() {
     });
     app.use(vite.middlewares);
   } else {
-    const distPath = path.join(process.cwd(), 'dist');
+    // In compiled server.cjs, __dirname is the 'dist' directory itself
+    const distPath = path.resolve(__dirname);
+    console.log(`[Production] Serving static files from: ${distPath}`);
     app.use(express.static(distPath));
-    // Express v4 uses '*'
     app.get('*', (req, res) => {
       res.sendFile(path.join(distPath, 'index.html'));
     });
