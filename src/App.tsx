@@ -327,7 +327,7 @@ export default function App() {
   };
 
   // Function to fetch live data from Google Sheets Web App
-  const fetchLiveTransactions = async (urlToUse = webAppUrl) => {
+  const fetchLiveTransactions = async (urlToUse = webAppUrl, showToastOnError = true) => {
     if (!urlToUse) return;
     setIsLoadingLive(true);
     setConnectionError(null);
@@ -355,8 +355,21 @@ export default function App() {
         throw new Error('Respons dari server tidak valid (bukan format JSON). Silakan periksa apakah URL Google Sheets Web App Anda sudah benar dan aktif.');
       }
 
+      let transactionsArray: any[] | null = null;
       if (Array.isArray(data)) {
-        const formatted: Transaction[] = data.map((item: any) => {
+        transactionsArray = data;
+      } else if (data && typeof data === 'object') {
+        if (Array.isArray(data.data)) {
+          transactionsArray = data.data;
+        } else if (Array.isArray(data.transactions)) {
+          transactionsArray = data.transactions;
+        } else if (Array.isArray(data.rows)) {
+          transactionsArray = data.rows;
+        }
+      }
+
+      if (transactionsArray) {
+        const formatted: Transaction[] = transactionsArray.map((item: any) => {
           let finalId = item.id ? String(item.id).trim() : "";
           const idRegex = /^[A-Z]\d{4}[A-Z]$/i;
           if (!finalId || finalId.startsWith('row_') || !idRegex.test(finalId)) {
@@ -371,8 +384,8 @@ export default function App() {
           }
           return {
             id: finalId,
-            tanggal: item.tanggal,
-            outlet: item.outlet,
+            tanggal: item.tanggal || '',
+            outlet: item.outlet || '',
             cash: Number(item.cash) || 0,
             qris: Number(item.qris) || 0,
             total: Number(item.total) || 0,
@@ -384,7 +397,9 @@ export default function App() {
         });
         setTransactions(formatted);
         setConnectionError(null);
-        triggerToast('Sinkronisasi data Google Sheets berhasil!', 'success');
+        if (showToastOnError) {
+          triggerToast('Sinkronisasi data Google Sheets berhasil!', 'success');
+        }
       } else {
         const errMsg = (data && typeof data === 'object' && data.error) ? data.error : 'Format data dari Google Sheets tidak valid (Harus berupa list/array)';
         throw new Error(errMsg);
@@ -393,10 +408,12 @@ export default function App() {
       console.error(err);
       const errMsg = err ? (err.message || String(err)) : 'Unknown error';
       setConnectionError(errMsg);
-      if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('NetworkError')) {
-        triggerToast('Koneksi gagal! Pastikan internet Anda aktif, URL Google Sheets Web App benar, dan izin aksesnya telah diatur ke "Anyone" (Siapa saja).', 'error');
-      } else {
-        triggerToast('Gagal sinkronisasi data: ' + errMsg, 'error');
+      if (showToastOnError) {
+        if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('NetworkError')) {
+          triggerToast('Koneksi gagal! Pastikan internet Anda aktif, URL Google Sheets Web App benar, dan izin aksesnya telah diatur ke "Anyone" (Siapa saja).', 'error');
+        } else {
+          triggerToast('Gagal sinkronisasi data: ' + errMsg, 'error');
+        }
       }
     } finally {
       setIsLoadingLive(false);
@@ -417,7 +434,7 @@ export default function App() {
   // Initial load live transactions if in live mode
   useEffect(() => {
     if (isLiveMode && webAppUrl && isLoggedIn) {
-      fetchLiveTransactions();
+      fetchLiveTransactions(webAppUrl, false);
     }
   }, [isLiveMode, isLoggedIn]);
 
