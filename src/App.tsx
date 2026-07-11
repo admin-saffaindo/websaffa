@@ -7,7 +7,8 @@ import {
   Lock, ArrowRight, LogOut, Wallet, Banknote, QrCode, Database, 
   PlusCircle, Save, BarChart3, History, Search, Trash2, Info, 
   CheckCircle, AlertCircle, FileCode, Copy, RefreshCw, BookOpen,
-  FileDown, Store, Calendar, Sparkles, Printer, ChevronDown, Clock
+  FileDown, Store, Calendar, Sparkles, Printer, ChevronDown, Clock,
+  AlertTriangle, ExternalLink
 } from 'lucide-react';
 import { exportToPDF } from './utils/pdfExport';
 
@@ -148,6 +149,7 @@ export default function App() {
     return !!initialUrl;
   });
   const [isLoadingLive, setIsLoadingLive] = useState<boolean>(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
 
   // Database / Transactions state (persisted to localStorage)
   const [transactions, setTransactions] = useState<Transaction[]>(() => {
@@ -328,12 +330,31 @@ export default function App() {
   const fetchLiveTransactions = async (urlToUse = webAppUrl) => {
     if (!urlToUse) return;
     setIsLoadingLive(true);
+    setConnectionError(null);
     try {
-      const response = await fetch(`${urlToUse}?action=read&_t=${Date.now()}`);
+      const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(urlToUse)}&action=read&_t=${Date.now()}`;
+      const response = await fetch(proxyUrl);
+      
+      const text = await response.text();
+      let data;
+      
       if (!response.ok) {
-        throw new Error(`HTTP error! status: ${response.status}`);
+        let errorMsg = `HTTP error! status: ${response.status}`;
+        try {
+          const errData = JSON.parse(text);
+          if (errData && errData.error) {
+            errorMsg = errData.error;
+          }
+        } catch (_) {}
+        throw new Error(errorMsg);
       }
-      const data = await response.json();
+
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error('Respons dari server tidak valid (bukan format JSON). Silakan periksa apakah URL Google Sheets Web App Anda sudah benar dan aktif.');
+      }
+
       if (Array.isArray(data)) {
         const formatted: Transaction[] = data.map((item: any) => {
           let finalId = item.id ? String(item.id).trim() : "";
@@ -362,13 +383,16 @@ export default function App() {
           };
         });
         setTransactions(formatted);
+        setConnectionError(null);
         triggerToast('Sinkronisasi data Google Sheets berhasil!', 'success');
       } else {
-        throw new Error('Format data tidak valid');
+        const errMsg = (data && typeof data === 'object' && data.error) ? data.error : 'Format data dari Google Sheets tidak valid (Harus berupa list/array)';
+        throw new Error(errMsg);
       }
     } catch (err: any) {
       console.error(err);
       const errMsg = err ? (err.message || String(err)) : 'Unknown error';
+      setConnectionError(errMsg);
       if (errMsg.includes('Failed to fetch') || errMsg.includes('fetch') || errMsg.includes('NetworkError')) {
         triggerToast('Koneksi gagal! Pastikan internet Anda aktif, URL Google Sheets Web App benar, dan izin aksesnya telah diatur ke "Anyone" (Siapa saja).', 'error');
       } else {
@@ -627,12 +651,29 @@ export default function App() {
     if (isLiveMode && webAppUrl) {
       setIsLoadingLive(true);
       try {
-        const url = `${webAppUrl}?action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`;
-        const res = await fetch(url);
+        const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(webAppUrl)}&action=add&tanggal=${tanggal}&outlet=${encodeURIComponent(outlet)}&cash=${cashValue}&qris=${qrisValue}&belumBayar=${belumBayarValue}&belumBayarNama=${encodeURIComponent(belumBayarNamaValue)}&_t=${Date.now()}`;
+        const res = await fetch(proxyUrl);
+        
+        const text = await res.text();
+        let resData;
+
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          let errorMsg = `HTTP error! status: ${res.status}`;
+          try {
+            const errData = JSON.parse(text);
+            if (errData && errData.error) {
+              errorMsg = errData.error;
+            }
+          } catch (_) {}
+          throw new Error(errorMsg);
         }
-        const resData = await res.json();
+
+        try {
+          resData = JSON.parse(text);
+        } catch (e) {
+          throw new Error('Respons dari server tidak valid (bukan format JSON). Silakan periksa apakah URL Google Sheets Web App Anda sudah benar.');
+        }
+
         if (resData.success) {
           const generatedId = resData.id || generateSimpleId();
           const newTx: Transaction = {
@@ -705,12 +746,29 @@ export default function App() {
     if (isLiveMode && webAppUrl && rowId) {
       setIsLoadingLive(true);
       try {
-        const url = `${webAppUrl}?action=delete&rowId=${rowId}&_t=${Date.now()}`;
-        const res = await fetch(url);
+        const proxyUrl = `/api/sheets-proxy?url=${encodeURIComponent(webAppUrl)}&action=delete&rowId=${rowId}&_t=${Date.now()}`;
+        const res = await fetch(proxyUrl);
+        
+        const text = await res.text();
+        let resData;
+
         if (!res.ok) {
-          throw new Error(`HTTP error! status: ${res.status}`);
+          let errorMsg = `HTTP error! status: ${res.status}`;
+          try {
+            const errData = JSON.parse(text);
+            if (errData && errData.error) {
+              errorMsg = errData.error;
+            }
+          } catch (_) {}
+          throw new Error(errorMsg);
         }
-        const resData = await res.json();
+
+        try {
+          resData = JSON.parse(text);
+        } catch (e) {
+          throw new Error('Respons dari server tidak valid (bukan format JSON). Silakan periksa apakah URL Google Sheets Web App Anda sudah benar.');
+        }
+
         if (resData.success) {
           triggerToast(resData.message || 'Data berhasil dihapus dari Google Sheets!', 'success');
           fetchLiveTransactions();
@@ -2616,6 +2674,68 @@ function deleteData(rowId) {
                         <Copy className="w-3.5 h-3.5" />
                         Salin Tautan Kunci
                       </button>
+                    </div>
+                  )}
+
+                  {connectionError && (
+                    <div className="mt-4 p-4 bg-rose-50 border border-rose-100 rounded-2xl">
+                      <div className="flex items-start gap-2.5">
+                        <AlertTriangle className="w-5 h-5 text-rose-500 flex-shrink-0 mt-0.5" />
+                        <div className="flex-1">
+                          <h4 className="text-xs font-bold text-rose-800">
+                            Terdeteksi Masalah Koneksi Google Sheets
+                          </h4>
+                          <p className="text-xs text-rose-700/90 mt-1 leading-relaxed">
+                            Respons dari Web App Google Script tidak valid (mengembalikan HTML halaman login/konfirmasi/keamanan dari Google, bukan format data JSON). Hal ini sangat umum terjadi ketika Google membatasi akses sementara ke script baru, atau memerlukan persetujuan izin akses pertama kali dari pemilik akun.
+                          </p>
+                          
+                          <div className="mt-3 bg-white/80 rounded-xl p-3 border border-rose-100/50 space-y-2">
+                            <p className="text-[10px] font-bold text-gray-800 uppercase tracking-wider">
+                              Cara Mengatasi (Hanya Butuh 30 Detik):
+                            </p>
+                            <ol className="list-decimal list-inside text-xs text-gray-600 space-y-1.5 leading-relaxed">
+                              <li>
+                                Klik tombol <strong className="text-gray-800">"Buka & Berikan Izin Otorisasi"</strong> di bawah untuk membuka URL Google Script langsung di browser Anda.
+                              </li>
+                              <li>
+                                Jika muncul halaman peringatan dari Google (seperti "Aplikasi tidak diverifikasi" atau "Review Permissions"), klik <strong className="text-gray-800">Advanced / Lanjutan</strong> di bagian bawah, lalu klik <strong className="text-gray-800">Go to Saffa Bubur Bayi (unsafe) / Buka Saffa Bubur Bayi (tidak aman)</strong>.
+                              </li>
+                              <li>
+                                Berikan otorisasi izin akses dengan mengklik tombol <strong className="text-gray-800">Allow / Izinkan</strong>.
+                              </li>
+                              <li>
+                                Pastikan juga saat melakukan Deploy di Google Apps Script, setelan aksesnya adalah:
+                                <div className="mt-1 pl-4 font-semibold text-gray-700">
+                                  • Execute as: "Me (Akun Google Anda)"<br />
+                                  • Who has access: "Anyone (Siapa saja, bahkan anonim)"
+                                </div>
+                              </li>
+                            </ol>
+                          </div>
+
+                          <div className="mt-3 flex flex-wrap gap-2">
+                            <a
+                              href={`${webAppUrl}?action=read`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="px-3.5 py-1.5 bg-rose-600 hover:bg-rose-700 text-white text-[11px] font-bold rounded-xl flex items-center gap-1.5 transition-all shadow-sm cursor-pointer"
+                            >
+                              <ExternalLink className="w-3.5 h-3.5" />
+                              Buka & Berikan Izin Otorisasi
+                            </a>
+                            <button
+                              onClick={() => {
+                                setConnectionError(null);
+                                fetchLiveTransactions();
+                              }}
+                              className="px-3.5 py-1.5 bg-white hover:bg-gray-50 border border-rose-200 text-rose-700 text-[11px] font-bold rounded-xl flex items-center gap-1.5 transition-all cursor-pointer"
+                            >
+                              <RefreshCw className="w-3.5 h-3.5" />
+                              Coba Hubungkan Kembali
+                            </button>
+                          </div>
+                        </div>
+                      </div>
                     </div>
                   )}
 
