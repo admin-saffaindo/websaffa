@@ -3020,9 +3020,24 @@ function deleteData(rowId) {
 
                   <div className="mt-4 pt-4 border-t border-white/60 grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
                     <div className="md:col-span-8">
-                      <label className="block text-[10px] uppercase font-bold text-gray-500 mb-1 tracking-wider">
-                        Google Apps Script Web App URL
-                      </label>
+                      <div className="flex justify-between items-center mb-1">
+                        <label className="block text-[10px] uppercase font-bold text-gray-500 tracking-wider">
+                          Google Apps Script Web App URL
+                        </label>
+                        {webAppUrl !== DEFAULT_WEB_APP_URL && (
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setWebAppUrl(DEFAULT_WEB_APP_URL);
+                              localStorage.setItem('saffa_web_app_url', DEFAULT_WEB_APP_URL);
+                              triggerToast('URL berhasil diatur ulang ke default sistem.', 'success');
+                            }}
+                            className="text-[10px] text-[#e90076] hover:underline font-bold bg-transparent border-0 cursor-pointer p-0"
+                          >
+                            Gunakan URL Bawaan
+                          </button>
+                        )}
+                      </div>
                       <input 
                         type="url"
                         value={webAppUrl}
